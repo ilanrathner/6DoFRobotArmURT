@@ -59,7 +59,11 @@ function [linkLengths, thetas] = controlArmSimulation(linkLengths, thetas, arm)
     function onPositionChanged()
         xyzrpy = arrayfun(@(f) f.Value, positionFields);
         x = xyzrpy(1); y = xyzrpy(2); z = xyzrpy(3);
-        pitch = xyzrpy(4); yaw = xyzrpy(5); roll = xyzrpy(6);
+
+        % Convert pitch, yaw, roll from degrees to radians
+        pitch = (pi/180) * xyzrpy(4);  %% <--
+        yaw   = (pi/180) * xyzrpy(5);  %% <--
+        roll  = (pi/180) * xyzrpy(6);  %% <--
 
         try
             [theta1, theta2, theta3, theta4, theta5, theta6] = inverseKinematics( ...
@@ -89,9 +93,11 @@ function [linkLengths, thetas] = controlArmSimulation(linkLengths, thetas, arm)
         positionFields(1).Value = pos(1);
         positionFields(2).Value = pos(2);
         positionFields(3).Value = pos(3);
-        positionFields(4).Value = pitch;
-        positionFields(5).Value = yaw;
-        positionFields(6).Value = roll;
+        %converting to degrees for display. When calculating inverse
+        %kinematics it is converted back to radians
+        positionFields(4).Value = (180/pi)*pitch;  %% <--
+        positionFields(5).Value = (180/pi)*yaw;    %% <--
+        positionFields(6).Value = (180/pi)*roll;   %% <--
 
         % Update arm display
         updateArm(arm, dh_table);

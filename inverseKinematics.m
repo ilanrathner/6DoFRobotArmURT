@@ -1,4 +1,4 @@
-%find the joint angles given the x,y,z coordinates and the angle phi of the
+%find the joint angles given the x,y,z coordinates and the orientation of the
 %end effector from the zero position. Also give linklengths.
 function [theta1, theta2, theta3, theta4, theta5, theta6] = inverseKinematics(x,y,z,...
                                                      yaw, pitch, roll, linkLengths)
