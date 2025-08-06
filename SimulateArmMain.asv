@@ -12,14 +12,16 @@ dh = createDHTable(linklengths, thetas);
 ts = [t1,t2,t3,t4,t5,t6] * 180/pi
 
 % A board facing X-axis, centered at x=15, z=10
-drawVerticalBoard('x', 15, 10, 50, 130);
+drawVerticalBoard('x', 30, 30, 60, 90, 10);
+
+hold on
 
 armSim = initialiseArm(dh);
-%[linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim);
+[linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim);
 
-
-function drawVerticalBoard(axisDirection, axisOffset, baseHeight, boardWidth, boardHeight)
-% drawVerticalBoard Draws a vertical board in 3D space.
+%inputs are in cm
+function drawVerticalBoard(axisDirection, axisOffset, baseHeight, boardWidth, boardHeight, gridSpacing)
+% drawVerticalBoard Draws a vertical board in 3D space with a point grid.
 %
 % Parameters:
 %   axisDirection - 'x' or 'y' (board is centered along this axis)
@@ -27,6 +29,7 @@ function drawVerticalBoard(axisDirection, axisOffset, baseHeight, boardWidth, bo
 %   baseHeight    - z-axis offset (height of bottom-middle edge)
 %   boardWidth    - width of board (extends perpendicular to axisDirection)
 %   boardHeight   - height of board (along z)
+%   gridSpacing   - spacing between grid points
 
     % Validate input
     if ~ismember(axisDirection, {'x', 'y'})
@@ -55,13 +58,33 @@ function drawVerticalBoard(axisDirection, axisOffset, baseHeight, boardWidth, bo
     y(end+1) = y(1);
     z(end+1) = z(1);
 
-    % Plot
+    % Plot the board
     figure;
     plot3(x, y, z, 'b-', 'LineWidth', 2);
+    hold on;
     fill3(x, y, z, [0.8, 0.8, 0.8]);
 
+    % Plot grid of points on board surface
+    widthVec = -w:gridSpacing:w;
+    heightVec = baseHeight:gridSpacing:(baseHeight + h);
+
+    for i = 1:length(widthVec)
+        for j = 1:length(heightVec)
+            switch axisDirection
+                case 'x'
+                    px = axisOffset;
+                    py = widthVec(i);
+                case 'y'
+                    px = widthVec(i);
+                    py = axisOffset;
+            end
+            pz = heightVec(j);
+            plot3(px, py, pz, 'ro', 'MarkerSize', 4, 'MarkerFaceColor', 'r');
+        end
+    end
+
     xlabel('X'); ylabel('Y'); zlabel('Z');
-    title(sprintf('Vertical Board (Centered on %s-axis)', upper(axisDirection)));
+    title(sprintf('Vertical Board with Grid (Centered on %s-axis)', upper(axisDirection)));
     axis equal;
     grid on;
     view(3);

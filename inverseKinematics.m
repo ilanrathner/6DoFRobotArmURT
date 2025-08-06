@@ -28,6 +28,11 @@ function [theta1, theta2, theta3, theta4, theta5, theta6] = inverseKinematics(x,
     %step 6 calculate theta 2 now that we have theta 3
     theta2 = atan2(r, s) - asin((L3 * sin(theta3))/(sqrt(r^2 + s^2)));
 
+    %inbetween step. Check if frist three joints are real
+    if ~isreal([theta1, theta2, theta3])
+        error('One or more joint angles are complex. Target position is not in the reachable workspace.');
+    end
+
     %inbetween step do calculations that are going to be repeated over and
     %over as a pre-step
     c1 = cos(theta1);

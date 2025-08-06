@@ -67,7 +67,7 @@ function [linkLengths, thetas] = controlArmSimulation(linkLengths, thetas, arm)
 
             thetas = [theta1, theta2, theta3, theta4, theta5, theta6];
             for i = 1:length(thetas)
-                thetaFields(i).Value = (180/pi)*thetas(i);
+                thetaFields(i).Value = (180/pithetas(i);
             end
 
             updateForward();
