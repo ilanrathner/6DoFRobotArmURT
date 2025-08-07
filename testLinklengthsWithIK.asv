@@ -1,0 +1,55 @@
+%this function is to test whether the arm with this configuration of linklengths 
+% can reach a point. The orientation is given as input and is the pitch yaw
+% roll for robustness of the function but it is expected to be the
+% orientation to point the end effecter straight at the panel ie ze points
+% towars panel. This is given by [0 0 1; 0 1 0;-1 0 0]
+function testLinklengthsWithIK(linkLengths, orientationYPR, testPoints)
+    % Inputs:
+    % - linkLengths: vector of link lengths
+    % - orientationRPY: [yaw, pitch, roll] desired orientation in radians
+    % - testPoints: Nx3 matrix of [x y z] coordinates
+    % - armSim: optional function handle for visualizing robot pose
+    
+    % Parameters
+    tolerance = 1e-6;
+    nPoints = size(testPoints, 1);
+    
+    % Initialize result tracking
+    reachable = false(nPoints, 1);
+    jointSolutions = zeros(nPoints, 6);
+    
+    % Loop through all test points
+    for i = 1:nPoints
+        x = testPoints(i, 1);
+        y = testPoints(i, 2);
+        z = testPoints(i, 3);
+        yaw = orientationYPR(1);
+        pitch = orientationYPR(2);
+        roll = orientationYPR(3);
+
+        try
+            [theta1, theta2, theta3, theta4, theta5, theta6] = ...
+                inverseKinematics(x, y, z, yaw, pitch, roll, linkLengths);
+            
+            jointAngles = [theta1, theta2, theta3, theta4, theta5, theta6];
+            
+            % Check for NaNs or infeasible values
+            if any(isnan(jointAngles)) || any(abs(jointAngles) > pi + tolerance)
+                warning("Point %d: Solution invalid (NaNs or out of bounds).", i);
+            else
+                reachable(i) = true;
+                jointSolutions(i, :) = jointAngles;
+
+                
+            end
+        catch ME
+            warning("Point %d: Inverse kinematics failed — %s", i, ME.message);
+        end
+    end
+
+    % Summary
+    fprintf("\n--- Reachability Summary ---\n");
+    fprintf("Total points tested: %d\n", nPoints);
+    fprintf("Reachable: %d\n", sum(reachable));
+    fprintf("Unreachable: %d\n", nPoints - sum(reachable));
+end
