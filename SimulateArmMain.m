@@ -18,6 +18,7 @@ armSim = initialiseArm(dh);
 hold on
 plotReachableWorkspaceCombos(linklengths);
 
+
 %inputs are in cm
 function drawVerticalBoard(axisDirection, axisOffset, baseHeight, boardWidth, boardHeight, gridSpacing)
 % drawVerticalBoard Draws a vertical board in 3D space with a point grid.
@@ -88,3 +89,5 @@ function drawVerticalBoard(axisDirection, axisOffset, baseHeight, boardWidth, bo
     grid on;
     view(3);
 end
+
+
