@@ -1,6 +1,8 @@
-linklengths = [30;40;25;10;10];
+linklengths = [9;34;32;15;15];
 thetas = [0,8,0,0,82,0] * pi/180;
 dh = createDHTable(linklengths, thetas);
+
+orientationYPR = [0, pi/2, 0];
 
 %testing inverse kinematics
 % T = transMax(0,7,dh);
@@ -11,12 +13,14 @@ dh = createDHTable(linklengths, thetas);
 % ts = angles* 180/pi
 
 % A board facing X-axis, centered at x=15, z=10
-% plotReachableWorkspaceCombos(linklengths)
-gridPoints = drawVerticalBoard('x', 30, 30, 60, 90, 10);
+%plotReachableWorkspaceCombos(linklengths)
+%hold on
+gridPoints = drawVerticalBoard('x', 35, -5, 90, 60, 10)
+
 validLinkLengths = findValidLengths(gridPoints)
 % hold on
 % armSim = initialiseArm(dh);
-% %plotReachableWorkspaceCombos(linklengths);
+% 
 % [linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim, gridPoints);
 %hold on
 
@@ -104,11 +108,11 @@ end
 
 function validLengths = findValidLengths(gridPoints)
     % lengths in cm ranges
-    L1_range = 10:1:20;  
-    L2_range = 10:1:20;  
-    L3_range = 10:1:20;
+    L1_range = 14:1:20;  
+    L2_range = 18:1:30;  
+    L3_range = 25:1:35;
     L4_range = 10:1:20;
-    L5_range = 10:1:20;
+    L5_range = 12:1:20;
 
     %finding solutions where are is pointing at the points
     orientationYPR = [0, pi/2, 0];
@@ -124,7 +128,7 @@ function validLengths = findValidLengths(gridPoints)
                         linkLengths = [L1, L2, L3, L4, L5];
                         try
                             % Test reachability
-                            testLinkLengthsWithIK(linkLengths, orientationYPR, gridPoints);
+                            testLinklengthsWithIK(linkLengths, orientationYPR, gridPoints);
     
                             % If no error, save the solution
                             validSolutions(end+1, :) = linkLengths;
@@ -133,6 +137,7 @@ function validLengths = findValidLengths(gridPoints)
     
                         catch
                             % If error, skip
+                            disp("Error. Not these lengths")
                             continue;
                         end
                     end
