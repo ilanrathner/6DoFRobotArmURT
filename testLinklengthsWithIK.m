@@ -2,7 +2,7 @@
 % can reach a point. The orientation is given as input and is the pitch yaw
 % roll for robustness of the function but it is expected to be the
 % orientation to point the end effecter straight at the panel ie ze points
-% towars panel. This is given by [0 0 1; 0 1 0;-1 0 0]
+% towars panel. This is given by [0 0 1; 0 1 0;-1 0 0] which is 0 90 0 YPR
 function testLinklengthsWithIK(linkLengths, orientationYPR, testPoints)
     % Create a figure for plotting
     fig = figure('Name', 'Arm Reachability Test', 'NumberTitle', 'off');

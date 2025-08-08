@@ -3,7 +3,8 @@
 %simpler to visualize the input field here will be in degrees.
 %linklengths are in cm
 %position or orientation is changed
-function [linkLengths, thetas] = controlArmSimulation(linkLengths, thetas, arm)
+function [linkLengths, thetas] = controlArmSimulation(linkLengths, thetas, arm, gridPoints)
+    forwardOrientation = [0, pi/2, 0];
     fig = uifigure('Name', 'Update DH Parameters', 'Position', [100, 100, 950, 550]);
 
     % Create input fields for link lengths
@@ -45,6 +46,13 @@ function [linkLengths, thetas] = controlArmSimulation(linkLengths, thetas, arm)
     function onLinkLengthChanged()
         for i = 1:length(linkLengths)
             linkLengths(i) = lFields(i).Value;
+        end
+        try
+            testLinklengthsWithIK(linkLengths, forwardOrientation, gridPoints);
+            disp('success')
+        catch ME
+            disp('IK test failed:');
+            disp(ME.message);
         end
         updateForward(); % Recalculate pose
     end

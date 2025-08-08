@@ -1,5 +1,5 @@
-linklengths = [10;10;10;10;10];
-thetas = [90,90,0,180,90,90] * pi/180;
+linklengths = [30;40;25;10;10];
+thetas = [0,8,0,0,82,0] * pi/180;
 dh = createDHTable(linklengths, thetas);
 
 %testing inverse kinematics
@@ -11,12 +11,14 @@ dh = createDHTable(linklengths, thetas);
 % ts = angles* 180/pi
 
 % A board facing X-axis, centered at x=15, z=10
-%gridPoints = drawVerticalBoard('x', 30, 30, 60, 90, 10);
-
-%armSim = initialiseArm(dh);
-%[linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim);
-%hold on
+% plotReachableWorkspaceCombos(linklengths)
+gridPoints = drawVerticalBoard('x', 30, 30, 60, 90, 10);
+hold on
+armSim = initialiseArm(dh);
 %plotReachableWorkspaceCombos(linklengths);
+[linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim, gridPoints);
+%hold on
+
 
 
 
@@ -37,6 +39,8 @@ function gridPoints = drawVerticalBoard(axisDirection, axisOffset, baseHeight, b
     if ~ismember(axisDirection, {'x', 'y'})
         error("axisDirection must be either 'x' or 'y'");
     end
+
+
 
     w = boardWidth / 2;
     h = boardHeight;
@@ -95,6 +99,15 @@ function gridPoints = drawVerticalBoard(axisDirection, axisOffset, baseHeight, b
     axis equal;
     grid on;
     view(3);
+end
+
+function validLengths = findValidLengths(gridPoints)
+    % Example: lengths in cm converted to meters
+    L1_range = 10:1:20;  % cm
+    L2_range = 10:1:20;  
+    L3_range = 10:1:20;
+    L4_range = 10:1:20;
+    L5_range = 10:1:20;
 end
 
 

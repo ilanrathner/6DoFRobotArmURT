@@ -1,5 +1,5 @@
-linklengths = [10;10;10;10;10];
-thetas = [90,90,0,180,90,90] * pi/180;
+linklengths = [30;40;25;10;10];
+thetas = [0,8,0,0,82,0] * pi/180;
 dh = createDHTable(linklengths, thetas);
 
 %testing inverse kinematics
@@ -11,12 +11,15 @@ dh = createDHTable(linklengths, thetas);
 % ts = angles* 180/pi
 
 % A board facing X-axis, centered at x=15, z=10
-%gridPoints = drawVerticalBoard('x', 30, 30, 60, 90, 10);
-
-%armSim = initialiseArm(dh);
-%[linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim);
+% plotReachableWorkspaceCombos(linklengths)
+gridPoints = drawVerticalBoard('x', 30, 30, 60, 90, 10);
+validLinkLengths = findValidLengths(gridPoints)
+% hold on
+% armSim = initialiseArm(dh);
+% %plotReachableWorkspaceCombos(linklengths);
+% [linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim, gridPoints);
 %hold on
-%plotReachableWorkspaceCombos(linklengths);
+
 
 
 
@@ -37,6 +40,8 @@ function gridPoints = drawVerticalBoard(axisDirection, axisOffset, baseHeight, b
     if ~ismember(axisDirection, {'x', 'y'})
         error("axisDirection must be either 'x' or 'y'");
     end
+
+
 
     w = boardWidth / 2;
     h = boardHeight;
@@ -95,6 +100,47 @@ function gridPoints = drawVerticalBoard(axisDirection, axisOffset, baseHeight, b
     axis equal;
     grid on;
     view(3);
+end
+
+function validLengths = findValidLengths(gridPoints)
+    % lengths in cm ranges
+    L1_range = 10:1:20;  
+    L2_range = 10:1:20;  
+    L3_range = 10:1:20;
+    L4_range = 10:1:20;
+    L5_range = 10:1:20;
+
+    %finding solutions where are is pointing at the points
+    orientationYPR = [0, pi/2, 0];
+    %Storage for all viable solutions
+    validSolutions = []; % each row = [L1 L2 L3 L4 L5]
+
+    % Step 4: Brute-force search
+    for L1 = L1_range
+        for L2 = L2_range
+            for L3 = L3_range
+                for L4 = L4_range
+                    for L5 = L5_range
+                        linkLengths = [L1, L2, L3, L4, L5];
+                        try
+                            % Test reachability
+                            testLinkLengthsWithIK(linkLengths, orientationYPR, gridPoints);
+    
+                            % If no error, save the solution
+                            validSolutions(end+1, :) = linkLengths;
+    
+                            disp(linkLengths)
+    
+                        catch
+                            % If error, skip
+                            continue;
+                        end
+                    end
+                end
+            end
+        end
+    end
+
 end
 
 
