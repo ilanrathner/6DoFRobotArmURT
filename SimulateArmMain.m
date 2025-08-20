@@ -108,11 +108,11 @@ end
 
 function validLengths = findValidLengths(gridPoints)
     % lengths in cm ranges
-    L1_range = 14:1:20;  
-    L2_range = 18:1:30;  
-    L3_range = 25:1:35;
-    L4_range = 10:1:20;
-    L5_range = 12:1:20;
+    L1_range = 9:1:20;  
+    L2_range = 32:1:35;  
+    L3_range = 33:1:35;
+    L4_range = 14:1:15;
+    L5_range = 14:1:15;
 
     %finding solutions where are is pointing at the points
     orientationYPR = [0, pi/2, 0];
