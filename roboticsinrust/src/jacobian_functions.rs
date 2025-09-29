@@ -1,6 +1,6 @@
-use nalgebra::{DMatrix, Matrix4, Matrix3, Vector3};
+use nalgebra::{DMatrix, Matrix4, Matrix3, DVector, Vector3};
 
-use crate::kinematicsFunctions::{create_dh_table_6DOF, trans_max};
+use crate::kinematics_functions::{create_dh_table_6DOF, trans_max};
 
 /// Computes the Jacobian matrix assuming revolute joints.
 /// 
@@ -90,7 +90,9 @@ pub fn task_space_velocity_control(
     cur_angles: &[f64; 6],
     k_p: f64,
     k_i: f64,
+    k_d: f64,
     mut error_integral: DVector<f64>,
+    prev_error: &DVector<f64>,  // for derivative term
     timestep: f64,
     link_lengths: &[f64; 5],
 ) -> (DVector<f64>, DVector<f64>, Vector3<f64>) {
@@ -133,8 +135,14 @@ pub fn task_space_velocity_control(
     // Update integral error
     error_integral += &error * timestep;
 
-    // Compute commanded task-space velocity
-    let v_w_command = &v_w_ref + error.scale(k_p) + error_integral.scale(k_i);
+    // Compute derivative error
+    let error_derivative = (&error - prev_error) / timestep;
+
+    // Compute commanded task-space velocity (PID)
+    let v_w_command = &v_w_ref
+        + error.scale(k_p)
+        + error_integral.scale(k_i)
+        + error_derivative.scale(k_d);
 
     // Compute Jacobian (6x6)
     let j = compute_jacobian(&dh_table);
