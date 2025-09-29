@@ -82,7 +82,7 @@ pub fn trans_max(j: usize, i: usize, dh: &[[f64; 4]]) -> Matrix4<f64> {
 
 /// Create the DH table from link lengths and joint angles.
 /// Note: link_lengths length = 5, thetas length = 6 (example taken from user's original code)
-fn create_dh_table_6DOF(link_lengths: &[f64; 5], thetas: &[f64; 6]) -> Vec<[f64; 4]> {
+pub fn create_dh_table_6DOF(link_lengths: &[f64; 5], thetas: &[f64; 6]) -> Vec<[f64; 4]> {
     let theta1 = thetas[0];
     let theta2 = thetas[1];
     let theta3 = thetas[2];
