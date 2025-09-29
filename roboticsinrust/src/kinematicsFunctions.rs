@@ -1,6 +1,8 @@
 use nalgebra::{Matrix4, Vector3};
 use std::f64::consts::PI;
 
+
+
 /// Translation matrix given x, y, z
 fn translate(x: f64, y: f64, z: f64) -> Matrix4<f64> {
     Matrix4::new(
@@ -50,7 +52,7 @@ fn transform(dh_row: [f64; 4]) -> Matrix4<f64> {
 }
 
 /// Final transformation matrix from frame j to i
-fn trans_max(j: usize, i: usize, dh: &Vec<[f64; 4]>) -> Matrix4<f64> {
+pub fn trans_max(j: usize, i: usize, dh: &Vec<[f64; 4]>) -> Matrix4<f64> {
     let r = dh.len();
     if i > r || j > r || dh[0].len() != 4 || j > i {
         panic!("Invalid DH table or indices");
