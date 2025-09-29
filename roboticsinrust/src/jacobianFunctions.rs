@@ -12,10 +12,7 @@ use crate::kinematicsFunctions::trans_max;
 /// 
 /// # Returns
 /// * `DMatrix<f64>` - 6 x num_joints Jacobian
-pub fn compute_jacobian(
-    dh_table: &DMatrix<f64>,
-    trans_max: &dyn Fn(usize, usize, &DMatrix<f64>) -> Matrix4<f64>,
-) -> DMatrix<f64> {
+pub fn compute_jacobian(dh_table: &DMatrix<f64>) -> DMatrix<f64> {
     // Number of joints (exclude last row = end effector)
     let num_joints = dh_table.nrows() - 1;
     let end_effector_dh_row = num_joints;
@@ -50,6 +47,20 @@ pub fn compute_jacobian(
             j[(row + 3, i)] = angular[row];
         }
     }
-
     j
+}
+
+
+fn damped_moore_penrose_pseudo_inverse(j: &DMatrix<f64>, lambda: f64) -> DMatrix<f64> {
+    let jt = j.transpose();
+    let jtj = &jt * j;
+    let n = jtj.nrows();
+
+    // Add damping term: (JᵀJ + λ²I)
+    let damped = jtj + DMatrix::identity(n, n) * lambda.powi(2);
+
+    // Invert safely
+    let inv = damped.try_inverse().expect("Matrix not invertible even with damping");
+
+    inv * jt
 }
