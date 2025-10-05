@@ -1,11 +1,14 @@
 mod kinematics_functions;  // includes kinematics.rs
 mod jacobian_functions;    // includes jacobian.rs
 
+mod dh;                    // includes dh.rs
+mod arm;                   // includes arm.rs
+
 use kinematics_functions::*; // optionally bring functions into scope
 use jacobian_functions::*;
 
 use kiss3d::window::Window;
-use kiss3d::nalgebra::{Point3, Translation3};
+use kiss3d::nalgebra::{Point3, Translation3, Vector3, Matrix3};
 
 fn main() {
     println!("Hello, world!");

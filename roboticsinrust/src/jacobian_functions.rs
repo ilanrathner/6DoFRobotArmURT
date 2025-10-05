@@ -1,6 +1,6 @@
-use nalgebra::{DMatrix, Matrix4, Matrix3, DVector, Vector3};
+use nalgebra::{DMatrix, Matrix3, DVector, Vector3};
 
-use crate::kinematics_functions::{create_dh_table_6DOF, trans_max};
+use crate::kinematics_functions::{create_dh_table_6_dof, trans_max};
 
 /// Computes the Jacobian matrix assuming revolute joints.
 /// 
@@ -9,17 +9,17 @@ use crate::kinematics_functions::{create_dh_table_6DOF, trans_max};
 ///                Format per row: [a, alpha, d, theta] 
 /// # Returns
 /// * `DMatrix<f64>` - 6 x num_joints Jacobian
-pub fn compute_jacobian(dh_table: &DMatrix<f64>) -> DMatrix<f64> {
+pub fn compute_jacobian(dh_table: &[[f64; 4]]) -> DMatrix<f64> {
     // Number of joints (exclude last row = end effector)
-    let num_joints = dh_table.nrows() - 1;
-    let end_effector_dh_row = num_joints;
+    let num_joints: usize = dh_table.nrows() - 1;
+    let end_effector_dh_row: usize = num_joints;
 
     // Initialize Jacobian (6 x num_joints)
     let mut j = DMatrix::<f64>::zeros(6, num_joints);
 
     // Compute end-effector transformation and position
     let t_end = trans_max(0, end_effector_dh_row, dh_table);
-    let p_end = t_end.fixed_slice::<3, 1>(0, 3).into_owned();
+    let p_end = t_end.fixed_view::<3, 1>(0, 3).into_owned();
 
     // Loop over joints
     for i in 0..num_joints {
@@ -27,10 +27,10 @@ pub fn compute_jacobian(dh_table: &DMatrix<f64>) -> DMatrix<f64> {
         let t_i = trans_max(0, i, dh_table);
 
         // Extract joint position
-        let p_i = t_i.fixed_slice::<3, 1>(0, 3).into_owned();
+        let p_i = t_i.fixed_view::<3, 1>(0, 3).into_owned();
 
         // Extract z-axis of the i-th frame
-        let z_i = t_i.fixed_slice::<3, 1>(0, 2).into_owned();
+        let z_i = t_i.fixed_view::<3, 1>(0, 2).into_owned();
 
         // Linear velocity part: cross(Z_i, (P_end - P_i))
         let linear = z_i.cross(&(p_end.clone() - p_i));
@@ -87,14 +87,14 @@ pub fn task_space_velocity_control(
     pos_ref: &Vector3<f64>,
     w_ref: &Vector3<f64>,
     rot_ref: &Matrix3<f64>,
-    cur_angles: &[f64; 6],
+    cur_angles: &[f64; 6], //Use this to calculate transformation matrix for position and orientaion at current position
+    link_lengths: &[f64; 5],
     k_p: f64,
     k_i: f64,
     k_d: f64,
     mut error_integral: DVector<f64>,
     prev_error: &DVector<f64>,  // for derivative term
     timestep: f64,
-    link_lengths: &[f64; 5],
 ) -> (DVector<f64>, DVector<f64>, Vector3<f64>) {
 
     // Combine linear and angular velocity reference
@@ -103,20 +103,20 @@ pub fn task_space_velocity_control(
     v_w_ref.extend(w_ref.iter());
 
     // Create DH table
-    let dh_table = create_dh_table(link_lengths, cur_angles);
+    let dh_table = create_dh_table_6_dof(link_lengths, cur_angles);
 
     // Compute current forward transform
     let forward_transform = trans_max(0, 6, &dh_table);
 
     // Extract current position
     let current_position = Vector3::from_column_slice(
-        forward_transform.fixed_slice::<3, 1>(0, 3).as_slice()
+        forward_transform.fixed_view::<3, 1>(0, 3).as_slice()
     );
 
     // Extract current rotation axes (columns of rotation)
-    let cur_rot_x = Vector3::from_column_slice(forward_transform.fixed_slice::<3, 1>(0, 0).as_slice());
-    let cur_rot_y = Vector3::from_column_slice(forward_transform.fixed_slice::<3, 1>(0, 1).as_slice());
-    let cur_rot_z = Vector3::from_column_slice(forward_transform.fixed_slice::<3, 1>(0, 2).as_slice());
+    let cur_rot_x = Vector3::from_column_slice(forward_transform.fixed_view::<3, 1>(0, 0).as_slice());
+    let cur_rot_y = Vector3::from_column_slice(forward_transform.fixed_view::<3, 1>(0, 1).as_slice());
+    let cur_rot_z = Vector3::from_column_slice(forward_transform.fixed_view::<3, 1>(0, 2).as_slice());
 
     // Compute rotation error
     let x_rot_error = cur_rot_x.cross(&rot_ref.column(0));
