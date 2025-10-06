@@ -1,0 +1,95 @@
+pub enum LinkVariable{
+    A, // corresponds to 'a' in DH table
+    D, // corresponds to 'd' in DH table
+}
+pub struct Link{
+    length: f64,
+    dh_row_index: usize,
+    link_var: LinkVariable,
+    // Other Link-specific data if necessary (e.g., mass, inertia)
+}
+impl Link{
+    pub fn new(length: f64, dh_row_index: usize, link_var: LinkVariable) -> Self {
+        Self { length, dh_row_index, link_var }
+    }
+
+    pub fn set_length(&mut self, new_length: f64) {
+        self.length = new_length;
+    }
+
+    pub fn get_length(&self) -> f64 {
+        self.length
+    }
+
+    pub fn get_dh_row_index(&self) -> usize {
+        self.dh_row_index
+    }
+
+    pub fn get_link_var(&self) -> &LinkVariable {
+        &self.link_var
+    }
+
+}
+
+pub struct RevoluteJoint {
+    angle: f64,
+    velocity: f64,
+    dh_row_index: usize,
+}
+
+impl RevoluteJoint {
+    pub fn new(angle: f64, velocity: f64, dh_row_index: usize) -> Self {
+        Self { angle, velocity, dh_row_index }
+    }
+
+    pub fn set_angle(&mut self, new_angle: f64) {
+        self.angle = new_angle;
+    }
+
+    pub fn get_angle(&self) -> f64 {
+        self.angle
+    }
+
+    pub fn set_velocity(&mut self, new_velocity: f64) {
+        self.velocity = new_velocity;
+    }
+
+    pub fn get_velocity(&self) -> f64 {
+        self.velocity
+    }
+
+    pub fn get_dh_row_index(&self) -> usize {
+        self.dh_row_index
+    }
+}
+
+pub struct DHTable {
+    links: Vec<Link>,
+    joints: Vec<Joint>,
+    rows: Vec<DHRow>,
+}
+
+impl DHTable {
+    pub fn new(links: Vec<Link>, joints: Vec<Joint>, rows: Vec<DHRow>) -> Self {
+        Self { links, joints, rows }
+    }
+
+    pub fn update_joint_angle(&mut self, joint_index: usize, new_angle: f64) {
+        if let Some(joint) = self.joints.get_mut(joint_index) {
+            joint.set_angle(new_angle);
+            let dh_index = joint.get_dh_row_index();
+            if let Some(dh_row) = self.rows.get_mut(dh_index) {
+                dh_row.set_joint_angle(new_angle);
+            }
+        }
+    }
+
+    pub fn update_link_length(&mut self, link_index: usize, new_length: f64) {
+        if let Some(link) = self.links.get_mut(link_index) {
+            link.set_length(new_length);
+            let dh_index = link.get_dh_row_index();
+            if let Some(dh_row) = self.rows.get_mut(dh_index) {
+                dh_row.set_new_link_length(new_length);
+            }
+        }
+    }
