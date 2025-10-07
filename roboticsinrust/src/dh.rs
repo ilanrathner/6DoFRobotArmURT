@@ -3,10 +3,7 @@ use nalgebra::{Matrix4};
 pub enum JointType {
     Revolute,
     Prismatic,
-}
-pub enum LinkVariable{
-    A, // corresponds to 'a' in DH table
-    D, // corresponds to 'd' in DH table
+    Fixed,
 }
 pub struct DHRow {
     a: f64,      
@@ -15,27 +12,35 @@ pub struct DHRow {
     theta: f64,  
     joint_type: JointType,
     joint_variable: f64, // This is the variable part of the joint which could be added to theta or d if its revolute or prismatic respectively
-    
 }
 
 impl DHRow {
     pub fn new(a: f64, alpha: f64, d: f64, theta: f64, joint_type:JointType) -> Self {
-        Self { a, alpha: alpha.to_radians(), d, theta: theta.to_radians(), joint_type, joint_variable: 0.0, }
+        Self { a, alpha: alpha.to_radians(), d, theta: theta.to_radians(), joint_type, joint_variable: 0.0 }
     }
 
     pub fn set_joint_variable(&mut self, new_var: f64) {
         match self.joint_type {
             JointType::Revolute => self.joint_variable = new_var.to_radians(), //new angle in radians
             JointType::Prismatic => self.joint_variable = new_var, //new distance in same units as d
+            JointType::Fixed => self.joint_variable = 0.0, // no variable for fixed joints
         }
     }
 
-    pub fn set_new_link_length(&mut self, new_length: f64, link_var: &LinkVariable) {
-        match link_var {
-            LinkVariable::A => self.a = new_length,
-            LinkVariable::D => self.d = new_length,
-        }
+    // Setters for DH parameters if initially fixed but need to be changed later
+    pub fn set_new_a(&mut self, new_a: f64) {
+        self.a = new_a;
     }
+    pub fn set_new_alpha(&mut self, new_alpha: f64) {
+        self.alpha = new_alpha.to_radians();
+    }
+    pub fn set_new_theta(&mut self, new_theta: f64) {
+        self.theta = new_theta.to_radians();
+    }
+    pub fn set_new_d(&mut self, new_d: f64) {
+        self.d = new_d;
+    }
+
 
     fn tx(&self) -> Matrix4<f64> {
         Matrix4::new(
@@ -59,6 +64,7 @@ impl DHRow {
         let d_total: f64 = match self.joint_type {
             JointType::Revolute => self.d, // d is constant for revolute joints
             JointType::Prismatic => self.d + self.joint_variable, // d changes with prismatic joints
+            JointType::Fixed => self.d, // d is constant for fixed joints
         };
         Matrix4::new(
             1.0, 0.0, 0.0, 0.0,
@@ -72,6 +78,7 @@ impl DHRow {
         let theta_total: f64 = match self.joint_type {
             JointType::Revolute => self.theta + self.joint_variable, // theta changes with revolute joints
             JointType::Prismatic => self.theta, // theta is constant for prismatic joints
+            JointType::Fixed => self.theta, // theta is constant for fixed joints
         };
         Matrix4::new(
             theta_total.cos(), -theta_total.sin(), 0.0, 0.0,
@@ -87,114 +94,57 @@ impl DHRow {
 
 }
 
-
-pub struct Link{
-    length: f64,
-    dh_row_index: usize,
-    link_var: LinkVariable,
-    // Other Link-specific data if necessary (e.g., mass, inertia)
-}
-impl Link{
-    pub fn new(length: f64, dh_row_index: usize, link_var: LinkVariable) -> Self {
-        Self { length, dh_row_index, link_var }
-    }
-
-    pub fn set_length(&mut self, new_length: f64) {
-        self.length = new_length;
-    }
-
-    pub fn get_length(&self) -> f64 {
-        self.length
-    }
-
-    pub fn get_dh_row_index(&self) -> usize {
-        self.dh_row_index
-    }
-
-    pub fn get_link_var(&self) -> &LinkVariable {
-        &self.link_var
-    }
-
-}
-
-pub struct RevoluteJoint {
-    angle: f64,
-    velocity: f64,
-    dh_row_index: usize,
-}
-
-impl RevoluteJoint {
-    pub fn new(angle: f64, velocity: f64, dh_row_index: usize) -> Self {
-        Self { angle, velocity, dh_row_index }
-    }
-
-    pub fn set_angle(&mut self, new_angle: f64) {
-        self.angle = new_angle;
-    }
-
-    pub fn get_angle(&self) -> f64 {
-        self.angle
-    }
-
-    pub fn set_velocity(&mut self, new_velocity: f64) {
-        self.velocity = new_velocity;
-    }
-
-    pub fn get_velocity(&self) -> f64 {
-        self.velocity
-    }
-
-    pub fn get_dh_row_index(&self) -> usize {
-        self.dh_row_index
-    }
-}
-
 pub struct DHTable {
-    links: Vec<Link>,
-    joints: Vec<Joint>,
     rows: Vec<DHRow>,
 }
 
 impl DHTable {
-    pub fn new(links: Vec<Link>, joints: Vec<Joint>, rows: Vec<DHRow>) -> Self {
-        Self { links, joints, rows }
+    pub fn new(rows: Vec<DHRow>) -> Self {
+        Self { rows }
     }
 
-    pub fn update_joint_angle(&mut self, joint_index: usize, new_angle: f64) {
-        if let Some(joint) = self.joints.get_mut(joint_index) {
-            joint.set_angle(new_angle);
-            let dh_index = joint.get_dh_row_index();
-            if let Some(dh_row) = self.rows.get_mut(dh_index) {
-                dh_row.set_joint_angle(new_angle);
-            }
+    pub fn set_joint_variable(&mut self, joint_index: usize, new_var: f64) {
+        if joint_index < self.rows.len() {
+            self.rows[joint_index].set_joint_variable(new_var);
+        } else {
+            panic!("Joint index out of bounds");
         }
     }
 
-    pub fn update_link_length(&mut self, link_index: usize, new_length: f64) {
-        if let Some(link) = self.links.get_mut(link_index) {
-            link.set_length(new_length);
-            let dh_index = link.get_dh_row_index();
-            if let Some(dh_row) = self.rows.get_mut(dh_index) {
-                dh_row.set_new_link_length(new_length);
-            }
+    pub fn set_joint_variables(&mut self, vars: &[f64]) {
+        for (row, &val) in self.rows.iter_mut().zip(vars.iter()) {
+            row.set_joint_variable(val);
         }
     }
 
+    pub fn transformation_matrix_j_i(&self, initial_row_index: usize, final_row_index:usize) -> Matrix4<f64> {
+  
+        if self.rows.is_empty() {
+            panic!("DH table is empty");
+        }
+        let r = self.rows.len();
+
+        let j = initial_row_index;
+        let i = final_row_index;
+
+        assert!(
+            j < i && i <= r,
+            "Invalid frame range: require 0 <= j < i <= {}, got j={}, i={}",
+            j, i, r
+        );
+
+        let mut transformation_matrix = Matrix4::<f64>::identity();
+
+        //multiply transformation matrices from j to i-1
+        for f in j..i {
+            transformation_matrix = transformation_matrix * self.rows[f].get_row_trans_mat();
+        }
+
+        transformation_matrix
+    }
 
     pub fn forward_kinematics(&self) -> Matrix4<f64> {
-        // start with identity
-        let mut accumulation = Matrix4::identity();
-
-        // iterate by reference so we don't move rows out of self
-        for row in self.rows.iter() {
-            // compute the transform for this DH row (borrow row, produce a Matrix4)
-            let t = row.get_row_trans_mat();
-
-            // multiply accumulative transform by the new one
-            accumulation = t * accumulation * t;
-        }
-
-        accumulation
+        self.transformation_matrix_j_i(0, self.rows.len())
     }
 }
 
