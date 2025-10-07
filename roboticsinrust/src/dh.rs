@@ -1,4 +1,4 @@
-use nalgebra::{Matrix4, Vector3, Rotation3, Isometry3};
+use nalgebra::{Matrix4, Vector3, Rotation3};
 
 pub enum JointType {
     Revolute,
@@ -149,3 +149,41 @@ impl DHTable {
 }
 
 
+pub struct Pose {
+    pub position: Vector3<f64>,
+    pub rotation: Matrix3<f64>,
+}
+
+impl Pose {
+    pub fn new(position: Vector3<f64>, rotation: Matrix3<f64>) -> Self {
+        Self { position, rotation }
+    }
+
+    pub fn to_homogeneous(&self) -> Matrix4<f64> {
+        let mut m = Matrix4::identity();
+        m.fixed_slice_mut::<3, 3>(0, 0).copy_from(&self.rotation);
+        m.fixed_slice_mut::<3, 1>(0, 3).copy_from(&self.position);
+        m
+    }
+
+    pub fn from_homogeneous(m: &Matrix4<f64>) -> Self {
+        let rotation = m.fixed_slice::<3, 3>(0, 0).into();
+        let position = Vector3::new(m[(0, 3)], m[(1, 3)], m[(2, 3)]);
+        Self { position, rotation }
+    }
+
+    /// Returns the x-axis of this frame.
+    pub fn x_axis(&self) -> Vector3<f64> {
+        self.rotation.column(0).into()
+    }
+
+    /// Returns the y-axis of this frame.
+    pub fn y_axis(&self) -> Vector3<f64> {
+        self.rotation.column(1).into()
+    }
+
+    /// Returns the z-axis of this frame (the joint axis direction).
+    pub fn z_axis(&self) -> Vector3<f64> {
+        self.rotation.column(2).into() // z-axis = 3rd column of rotation
+    }
+}
