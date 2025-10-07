@@ -1,4 +1,4 @@
-use nalgebra::{Matrix4, Vector3, Rotation3};
+use nalgebra::{Matrix4, Matrix3,  Vector3};
 
 pub enum JointType {
     Revolute,
@@ -161,13 +161,13 @@ impl Pose {
 
     pub fn to_homogeneous(&self) -> Matrix4<f64> {
         let mut m = Matrix4::identity();
-        m.fixed_slice_mut::<3, 3>(0, 0).copy_from(&self.rotation);
-        m.fixed_slice_mut::<3, 1>(0, 3).copy_from(&self.position);
+        m.fixed_view_mut::<3, 3>(0, 0).copy_from(&self.rotation);
+        m.fixed_view_mut::<3, 1>(0, 3).copy_from(&self.position);
         m
     }
 
     pub fn from_homogeneous(m: &Matrix4<f64>) -> Self {
-        let rotation = m.fixed_slice::<3, 3>(0, 0).into();
+        let rotation = m.fixed_view::<3, 3>(0, 0).into();
         let position = Vector3::new(m[(0, 3)], m[(1, 3)], m[(2, 3)]);
         Self { position, rotation }
     }
