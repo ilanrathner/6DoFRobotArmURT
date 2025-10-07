@@ -1,4 +1,4 @@
-use nalgebra::{Matrix4};
+use nalgebra::{Matrix4, Vector3, Rotation3, Isometry3};
 
 pub enum JointType {
     Revolute,
@@ -130,7 +130,7 @@ impl DHTable {
         assert!(
             j < i && i <= r,
             "Invalid frame range: require 0 <= j < i <= {}, got j={}, i={}",
-            j, i, r
+            r, j, i
         );
 
         let mut transformation_matrix = Matrix4::<f64>::identity();
