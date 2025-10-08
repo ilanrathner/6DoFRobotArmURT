@@ -115,16 +115,19 @@ impl DHRow {
 pub struct DHTable {
     rows: Vec<DHRow>,
     num_joints: usize, // number of joints (this is how many prismatic and revolute frames there are)
+    joint_indices: Vec<usize>, // cached indices of joint frames
 }
 
 impl DHTable {
     pub fn new_empty() -> Self {
-        Self { rows: Vec::new(), num_joints: 0 }
+        Self { rows: Vec::new(), num_joints: 0 , joint_indices: Vec::new()}
     }
 
     pub fn insert_row(&mut self, row: DHRow) {
-        if !matches!(row.frame_type, FrameType::Fixed) {
+        let index = self.rows.len();
+        if row.frame_type.is_joint() {
             self.num_joints += 1;
+            self.joint_indices.push(index);
         }
         self.rows.push(row);
     }
@@ -133,17 +136,33 @@ impl DHTable {
 
     pub fn num_frames(&self) -> usize { self.rows.len() }
 
-    pub fn set_joint_variable(&mut self, joint_index: usize, new_var: f64) {
-        if joint_index < self.num_frames() {
-            self.rows[joint_index].set_joint_variable(new_var);
-        } else {
-            panic!("Joint index out of bounds");
+    // possible function for later pub fn get_joint_indices(&self) -> &Vec<usize> { &self.joint_indices}
+
+    /// Set a single joint variable by joint number (not row index)
+    pub fn set_joint_variable(&mut self, joint_num: usize, new_var: f64) {
+        if joint_num >= self.num_joints {
+            panic!(
+                "Joint number out of bounds: {} (num joints = {})",
+                joint_num, self.num_joints
+            );
         }
+        let row_index = self.joint_indices[joint_num];
+        self.rows[row_index].set_joint_variable(new_var);
     }
 
+    /// Set multiple joint variables at once in the order of joints
     pub fn set_joint_variables(&mut self, vars: &[f64]) {
-        for (row, &val) in self.rows.iter_mut().zip(vars.iter()) {
-            row.set_joint_variable(val);
+        if vars.len() > self.num_joints {
+            panic!(
+                "Too many joint variables provided: {} (num joints = {})",
+                vars.len(),
+                self.num_joints
+            );
+        }
+
+        for (joint_num, &val) in vars.iter().enumerate() {
+            let row_index = self.joint_indices[joint_num];
+            self.rows[row_index].set_joint_variable(val);
         }
     }
 
@@ -270,12 +289,6 @@ impl DHTable {
         (j, inv_j)
     }
 
-    /// Returns the indices of the rows that correspond to joints (revolute or prismatic).
-    pub fn joint_indices(&self) -> Vec<usize> {
-        self.rows.iter().enumerate()
-            .filter_map(|(i, row)| if row.frame_type.is_joint() { Some(i) } else { None })
-            .collect()
-    }
 }
 
 
