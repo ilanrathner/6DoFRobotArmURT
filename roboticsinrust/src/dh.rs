@@ -186,7 +186,7 @@ impl DHTable {
 
         //multiply transformation matrices from j to i-1
         for f in j..i {
-            transformation_matrix = transformation_matrix * self.rows[f].get_row_trans_mat();
+            transformation_matrix *=  self.rows[f].get_row_trans_mat();
         }
 
         transformation_matrix
