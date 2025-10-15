@@ -115,7 +115,7 @@ impl DHRow {
 pub struct DHTable {
     rows: Vec<DHRow>,
     num_joints: usize, // number of joints (this is how many prismatic and revolute frames there are)
-    joint_indices: Vec<usize>, // cached indices of joint frames
+    joint_indices: Vec<usize>, // cached indices of joint frames for rows vec. This maps joint number to row index
 }
 
 impl DHTable {
@@ -209,6 +209,14 @@ impl DHTable {
         poses
     }
 
+    pub fn get_frame_pose(&self, frame_index: usize) -> Pose {
+        assert!(frame_index < self.rows.len());
+        let mut transform = Matrix4::<f64>::identity();
+        for k in 0..frame_index {
+            transform *= self.rows[k].get_row_trans_mat();
+        }
+        Pose::from_homogeneous(&transform)
+    }
     /// Get pose between frame j and frame i (exclusive i index convention)
     pub fn pose_between_j_i(&self, j: usize, i: usize) -> Pose {
         assert!(j < i && i <= self.rows.len());
