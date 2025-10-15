@@ -1,11 +1,10 @@
-use crate::arm::Arm;
-use nalgebra::{Point3};
 use kiss3d::window::Window;
 use kiss3d::scene::SceneNode;
-use kiss3d::nalgebra as na;
-use crossterm::event::{self, Event, KeyCode};
-use std::{thread, time::Duration};
-use std::time::Instant;
+use kiss3d::nalgebra::Translation3;
+use kiss3d::event::{Key, Action};
+use std::time::Duration;
+use crate::Arm;
+
 
 /// Simulation for task-space velocity control with continuous loop and non-blocking input.
 pub struct ArmSim {
@@ -44,32 +43,16 @@ impl ArmSim {
         }
 
         self.arm.set_joint_variables(&self.joint_vars);
+        self.arm.update();
         Ok(())
     }
 
-    fn adjust_velocity(&mut self, key: KeyCode) {
-        let mag = 1.0;
-        match key {
-            KeyCode::Char('x') => self.task_vel[0] += mag,
-            KeyCode::Char('X') => self.task_vel[0] -= mag,
-            KeyCode::Char('y') => self.task_vel[1] += mag,
-            KeyCode::Char('Y') => self.task_vel[1] -= mag,
-            KeyCode::Char('z') => self.task_vel[2] += mag,
-            KeyCode::Char('Z') => self.task_vel[2] -= mag,
-            KeyCode::Char('r') => self.task_vel[3] += mag,
-            KeyCode::Char('R') => self.task_vel[3] -= mag,
-            KeyCode::Char('p') => self.task_vel[4] += mag,
-            KeyCode::Char('P') => self.task_vel[4] -= mag,
-            KeyCode::Char('w') => self.task_vel[5] += mag,
-            KeyCode::Char('W') => self.task_vel[5] -= mag,
-            _ => {}
-        }
-    }
-
+    
     pub fn reset(&mut self) {
         self.task_vel.fill(0.0);
         for v in &mut self.joint_vars { *v = 0.0; }
         self.arm.set_joint_variables(&self.joint_vars);
+        self.arm.update();
         println!("Reset velocities and joint vars to zero.");
     }
 
@@ -94,19 +77,33 @@ impl ArmSim {
         let dt_duration = Duration::from_secs_f64(self.dt);
 
         while window.render() {
-            // Non-blocking input check
-            if event::poll(Duration::from_millis(1)).unwrap() {
-                if let Event::Key(ev) = event::read().unwrap() {
-                    match ev.code {
-                        KeyCode::Char('q') => {
-                            println!("Quitting simulation.");
-                            break;
-                        }
-                        KeyCode::Char(' ') => self.reset(),
-                        key => self.adjust_velocity(key),
-                    }
-                }
+            // Keyboard input via kiss3d
+            if window.get_key(Key::Q) == Action::Press {
+                println!("Quitting simulation.");
+                break;
             }
+
+            if window.get_key(Key::Space) == Action::Press {
+                self.reset();
+            }
+
+            // Linear velocities
+            if window.get_key(Key::X) == Action::Press { self.task_vel[0] += 1.0; }
+            if window.get_key(Key::Y) == Action::Press { self.task_vel[1] += 1.0; }
+            if window.get_key(Key::Z) == Action::Press { self.task_vel[2] += 1.0; }
+
+            if window.get_key(Key::U) == Action::Press { self.task_vel[0] -= 1.0; } // X-
+            if window.get_key(Key::I) == Action::Press { self.task_vel[1] -= 1.0; } // Y-
+            if window.get_key(Key::O) == Action::Press { self.task_vel[2] -= 1.0; } // Z-
+
+            // Angular velocities
+            if window.get_key(Key::R) == Action::Press { self.task_vel[3] += 1.0; }
+            if window.get_key(Key::P) == Action::Press { self.task_vel[4] += 1.0; }
+            if window.get_key(Key::W) == Action::Press { self.task_vel[5] += 1.0; }
+
+            if window.get_key(Key::T) == Action::Press { self.task_vel[3] -= 1.0; } // Roll-
+            if window.get_key(Key::Y) == Action::Press { self.task_vel[4] -= 1.0; } // Pitch-
+            if window.get_key(Key::U) == Action::Press { self.task_vel[5] -= 1.0; } // Yaw-
 
             // Physics step
             if let Err(e) = self.step() {
@@ -116,15 +113,15 @@ impl ArmSim {
             // Update joint node positions
             let poses = self.arm.frame_poses();
             for (i, pose) in poses.iter().enumerate() {
-                joint_nodes[i].set_local_translation(Point3::new(
+                joint_nodes[i].set_local_translation(Translation3::new(
                     pose.position.x as f32,
                     pose.position.y as f32,
                     pose.position.z as f32,
                 ));
             }
 
-            // Optionally, draw lines between joints for links
-            // Could use `window.add_cube()` or `window.add_capsule()` for arm segments
+            // Optional: add a small sleep to limit loop rate
+            std::thread::sleep(dt_duration);
         }
     }
 }
