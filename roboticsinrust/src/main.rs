@@ -1,44 +1,34 @@
-mod kinematics_functions;  // includes kinematics.rs
-mod jacobian_functions;    // includes jacobian.rs
+mod dh;
+mod arm;
+mod arm_sim;
 
-mod dh;                    // includes dh.rs
-mod arm;                   // includes arm.rs
+use dh::{DHTable, DHRow, FrameType};
+use arm::Arm;
+use arm_sim::ArmSim;
 
-use kinematics_functions::*; // optionally bring functions into scope
-use jacobian_functions::*;
-
-use kiss3d::window::Window;
-use kiss3d::nalgebra::{Point3, Translation3, Vector3, Matrix3};
+use std::f64::consts::PI;
 
 fn main() {
-    println!("Hello, world!");
+    // URT robot 6 dof arm
+    // Replace these rows with your real robot DH parameters.
+    let mut table = DHTable::new_empty();
 
-    let mut window = Window::new("Interactive Robot Arm");
-    let mut joint_angles = [0.0; 6];
-    let link_lengths = [1.0,1.0,1.0,1.0,1.0];
+    // DHRow::new(a, alpha_deg, d, theta_deg, FrameType)
+    table.insert_row(DHRow::new(0.0, 0.0, 9.0, 0.0, FrameType::Revolute)); // joint 1
+    table.insert_row(DHRow::new(0.0, -PI/2.0, 0.0, -PI/2.0, FrameType::Revolute)); // joint 2
+    table.insert_row(DHRow::new(34.0, 0.0, 0.0, PI/2.0, FrameType::Revolute)); // joint 3
+    table.insert_row(DHRow::new(0.0, PI/2.0, 32.0, 0.0, FrameType::Revolute)); // joint 4
+    table.insert_row(DHRow::new(0.0, -PI/2.0, 0.0, 0.0, FrameType::Revolute)); // joint 5
+    table.insert_row(DHRow::new(0.0, PI/2.0, 15.0, 0.0, FrameType::Revolute)); // joint 6
+    // Add an end effector fixed frame for visualization (optional)
+    table.insert_row(DHRow::new(0.0, 0.0, 15.0, 0.0, FrameType::Fixed));
 
-    while window.render() {
-        // Clear window automatically each render loop
+    // Create Arm with default damping
+    let arm = Arm::new(table, None);
 
-        // Update joint angles based on user input
-        if window.key_down(kiss3d::event::Key::Up) { joint_angles[0] += 0.01; }
-        if window.key_down(kiss3d::event::Key::Down) { joint_angles[0] -= 0.01; }
+    // choose dt for integration (seconds)
+    let dt = 0.05; // 50 ms per keypress step
 
-        // Compute joint positions
-        let positions = forward_kinematics(&joint_angles, &link_lengths);
-
-        // Draw links
-        for w in positions.windows(2) {
-            let p0 = Point3::new(w[0][0], w[0][1], w[0][2]);
-            let p1 = Point3::new(w[1][0], w[1][1], w[1][2]);
-            window.draw_line(&p0, &p1, &kiss3d::nalgebra::geometry::Color::rgb(1.0,0.0,0.0));
-        }
-
-        // Optionally draw joints as spheres
-        for pos in &positions {
-            let mut sphere = window.add_sphere(0.05);
-            sphere.set_local_translation(Translation3::new(pos[0], pos[1], pos[2]));
-            sphere.set_color(0.0, 0.0, 1.0);
-        }
-    }
+    let mut sim = ArmSim::new(arm, dt);
+    sim.run();
 }

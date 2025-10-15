@@ -59,7 +59,7 @@ impl Arm {
         self.dh_table.get_frame_pose(self.dh_table.num_frames() - 1)
     }
 
-    pub fn frame_poses(&mut self) -> Vec<Pose> {
+    pub fn frame_poses(&self) -> Vec<Pose> {
         self.dh_table.all_poses()
     }
 

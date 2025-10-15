@@ -1,0 +1,1 @@
+cargo:rustc-env=MIME_TYPES_GENERATED_PATH=C:\Programming\RobotArmURT\roboticsinrust\target\debug\build\mime_guess-14be026d4c1242e0\out\mime_types_generated.rs

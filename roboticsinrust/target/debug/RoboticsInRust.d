@@ -1,1 +1,1 @@
-C:\Programming\RobotArmURT\roboticsinrust\target\debug\RoboticsInRust.exe: C:\Programming\RobotArmURT\roboticsinrust\src\main.rs
+C:\Programming\RobotArmURT\roboticsinrust\target\debug\RoboticsInRust.exe: C:\Programming\RobotArmURT\roboticsinrust\src\arm.rs C:\Programming\RobotArmURT\roboticsinrust\src\arm_sim.rs C:\Programming\RobotArmURT\roboticsinrust\src\dh.rs C:\Programming\RobotArmURT\roboticsinrust\src\main.rs
