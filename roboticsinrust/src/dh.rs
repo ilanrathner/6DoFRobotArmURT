@@ -107,6 +107,18 @@ impl DHRow {
         self.tx() * self.rx() * self.tz() * self.rz()
     }
 
+    pub fn print_row(&self, index: usize) {
+        let ftype = match self.frame_type {
+            FrameType::Revolute => "Revolute",
+            FrameType::Prismatic => "Prismatic",
+            FrameType::Fixed => "Fixed",
+        };
+
+        println!(
+            "Row {} | {:9} | a={:.4}, alpha={:.4}, d={:.4}, theta={:.4}, joint_variable={:.4}",
+            index, ftype, self.a, self.alpha, self.d, self.theta, self.joint_variable
+        );
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -297,13 +309,21 @@ impl DHTable {
         (j, inv_j)
     }
 
+    pub fn print_table(&self) {
+        println!("================ DH TABLE ================");
+        for (i, row) in self.rows.iter().enumerate() {
+            row.print_row(i);
+        }
+        println!("==========================================");
+    }
+
 }
 
 
 // -----------------------------------------------------------------------------
 // Pose struct turns a homogeneous matrix into position + rotation and functions for reverse as well
 // -----------------------------------------------------------------------------
-
+#[derive(Debug)]
 pub struct Pose {
     pub position: Vector3<f64>,
     pub rotation: Matrix3<f64>,
@@ -316,13 +336,13 @@ impl Pose {
 
     pub fn to_homogeneous(&self) -> Matrix4<f64> {
         let mut m = Matrix4::identity();
-        m.fixed_view_mut::<3, 3>(0, 0).copy_from(&self.rotation);
-        m.fixed_view_mut::<3, 1>(0, 3).copy_from(&self.position);
+        m.fixed_slice_mut::<3, 3>(0, 0).copy_from(&self.rotation);
+        m.fixed_slice_mut::<3, 1>(0, 3).copy_from(&self.position);
         m
     }
 
     pub fn from_homogeneous(m: &Matrix4<f64>) -> Self {
-        let rotation = m.fixed_view::<3, 3>(0, 0).into();
+        let rotation = m.fixed_slice::<3, 3>(0, 0).into();
         let position = Vector3::new(m[(0, 3)], m[(1, 3)], m[(2, 3)]);
         Self { position, rotation }
     }

@@ -1,5 +1,5 @@
 linklengths = [9;34;32;15;15];
-thetas = [0,8,0,0,82,0] * pi/180;
+thetas = [0,0,0,0,0,0] * pi/180;
 dh = createDHTable(linklengths, thetas);
 
 orientationYPR = [0, pi/2, 0];
@@ -8,7 +8,7 @@ orientationYPR = [0, pi/2, 0];
 % T = transMax(0,7,dh);
 % R = T(1:3,1:3);
 % [yaw,pitch,roll] = inverseOrientation(R)
-% armSim = initialiseArm(dh);
+%armSim = initialiseArm(dh);
 % angles = inverseKinematics(0,20,30, 0,0,0, linklengths)
 % ts = angles* 180/pi
 
@@ -17,11 +17,11 @@ orientationYPR = [0, pi/2, 0];
 %hold on
 gridPoints = drawVerticalBoard('x', 35, -5, 90, 60, 10)
 
-validLinkLengths = findValidLengths(gridPoints)
-% hold on
-% armSim = initialiseArm(dh);
+%validLinkLengths = findValidLengths(gridPoints)
+hold on
+armSim = initialiseArm(dh);
 % 
-% [linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim, gridPoints);
+[linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim, gridPoints);
 %hold on
 
 
