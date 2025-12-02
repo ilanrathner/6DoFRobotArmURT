@@ -1,5 +1,5 @@
 use crate::dh::{DHTable, Pose};
-use crate::inverse_kinematic_solvers::IkSolver; // <-- IMPORT TRAIT FROM CONSOLIDATED FILE
+use crate::inverse_kinematics_solvers::IkSolver; // <-- IMPORT TRAIT FROM CONSOLIDATED FILE
 
 use nalgebra::{DMatrix};
 
@@ -11,11 +11,13 @@ pub struct Arm {
     dirty: bool,                 // True if DH table changed since last FK / Jacobian
     damping: f64,                // Default damping for pseudo-inverse
     ik_solver: Box<dyn IkSolver>, // Inverse Kinematics solver
+    /// Generic list of link parameters needed by the specific IkSolver.
+    ik_link_parameters: Vec<f64>,
 }
 
 impl Arm {
     /// Initialize arm with a DH table and optional damping
-    pub fn new(dh_table: DHTable, damping: Option<f64>, ik_solver: Box<dyn IkSolver>) -> Self {
+    pub fn new(dh_table: DHTable, damping: Option<f64>, ik_solver: Box<dyn IkSolver>, ik_link_parameters: Vec<f64>) -> Self {
         Self {
             dh_table,
             jacobian: None,
@@ -23,6 +25,7 @@ impl Arm {
             dirty: true,
             damping: damping.unwrap_or(1e-4),
             ik_solver,
+            ik_link_parameters, // Store the received parameters
         }
     }
 
@@ -80,5 +83,31 @@ impl Arm {
     }
 
     
+    /// Solves IK using the End-Effector target pose (position + rotation matrix).
+    pub fn solve_ik_from_pose(&self, target_pose: &Pose) -> Result<[f64; 6], String> {
+        let x = target_pose.position.x;
+        let y = target_pose.position.y;
+        let z = target_pose.position.z;
+        let r = &target_pose.rotation;
+        
+        let link_lengths = &self.ik_link_parameters; // Get the stored link parameters
+        
+        // Calls the method on the stored trait object, passing a slice reference
+        self.ik_solver.solve_ik(x, y, z, r, &link_lengths) // <--- PASSES &[f64]
+    }
+
+    /// Solves IK using the End-Effector target position (x,y,z) and Euler angles (yaw, pitch, roll).
+    pub fn solve_ik_from_components(
+        &self, 
+        x: f64, y: f64, z: f64, 
+        yaw: f64, pitch: f64, roll: f64
+    ) -> Result<[f64; 6], String> {
+        
+        let r = Pose::orientation_mat(yaw, pitch, roll); 
+        let link_lengths = &self.ik_link_parameters; // Get the stored link parameters
+        
+        // Calls the method on the stored trait object, passing a slice reference
+        self.ik_solver.solve_ik(x, y, z, &r, &link_lengths) // <--- PASSES &[f64]
+    }
 
 }

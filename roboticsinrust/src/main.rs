@@ -1,5 +1,6 @@
 mod dh;
 mod arm;
+mod inverse_kinematics_solvers;
 mod arm_sim;
 
 use dh::{DHTable, DHRow, FrameType};
@@ -23,8 +24,19 @@ fn main() {
     // Add an end effector fixed frame for visualization (optional)
     table.insert_row(DHRow::new(0.0, 0.0, 15.0, 0.0, FrameType::Fixed));
 
+    let urt_ik_link_parameters = vec![
+        9.0,  // l1
+        34.0, // l2
+        0.0,  // l3
+        32.0, // l4
+        15.0, // l5
+    ];
+
     // Create Arm with default damping
-    let arm = Arm::new(table, None);
+    let arm = Arm::new(table, 
+        None, 
+        Box::new(inverse_kinematics_solvers::UrtIkSolver), 
+        urt_ik_link_parameters);
 
     // choose dt for integration (seconds)
     let dt = 0.05; // 50 ms per keypress step
