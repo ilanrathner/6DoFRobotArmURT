@@ -44,6 +44,18 @@ impl IkSolver for UrtIkSolver {
             ));
         }
 
+        // --- ADDED: Print input position (x, y, z) and rotation matrix (r) ---
+        println!("--- IK Solver Input ---");
+        println!("Target Position (x, y, z): ({:.4}, {:.4}, {:.4})", x, y, z);
+        println!("Target Rotation Matrix (R):");
+        
+        // Print the 3x3 matrix row-by-row for readability
+        for i in 0..3 {
+            println!("\t| {:.4}  {:.4}  {:.4} |", 
+                r[(i, 0)], r[(i, 1)], r[(i, 2)]);
+        }
+        println!("-----------------------");
+
         let l1 = link_lengths[0];
         let l2 = link_lengths[1];
         let l3 = link_lengths[2];
@@ -66,10 +78,10 @@ impl IkSolver for UrtIkSolver {
         // Step 5: theta3 (using law of cosines)
         let numerator = r_val.powi(2) + s.powi(2) - l2.powi(2) - l3.powi(2);
         let denom = 2.0 * l2 * l3;
-        let cos_theta3 = numerator / denom;
-        if cos_theta3.abs() > 1.0 {
-            return Err("Target out of workspace: theta3 complex".into());
-        }
+        let cos_theta3 = (numerator / denom);
+        //if cos_theta3.abs() > 1.0 {
+        //    return Err("Target out of workspace: theta3 complex".into());
+        //}
         let sin_theta3 = (1.0 - cos_theta3 * cos_theta3).sqrt();
         let theta3 = sin_theta3.atan2(cos_theta3);
 
@@ -77,9 +89,9 @@ impl IkSolver for UrtIkSolver {
         let theta2 = (s).atan2(r_val) - (l3 * sin_theta3).atan2(l2 + l3 * cos_theta3);
         
         // Validate first three joints are finite
-        if !theta1.is_finite() || !theta2.is_finite() || !theta3.is_finite() {
-            return Err("Target out of workspace: base joints complex".into());
-        }
+        //if !theta1.is_finite() || !theta2.is_finite() || !theta3.is_finite() {
+        //    return Err("Target out of workspace: base joints complex".into());
+        //}
 
         // Precompute sines/cosines used for wrist orientation
         let c1 = theta1.cos();
@@ -100,7 +112,14 @@ impl IkSolver for UrtIkSolver {
         // Final check
         let thetas = [theta1, theta2, theta3, theta4, theta5, theta6];
         if thetas.iter().any(|t| !t.is_finite()) {
-            return Err("One or more joint angles are invalid".into());
+            // --- MODIFIED ERROR MESSAGE ---
+            let thetas_str: Vec<String> = thetas.iter().map(|t| format!("{:.4}", t)).collect();
+            
+            return Err(format!(
+                "One or more joint angles are invalid (NaN or Inf). Calculated: [{}]",
+                thetas_str.join(", ")
+            ));
+            // ------------------------------
         }
         
         Ok(thetas.to_vec())
