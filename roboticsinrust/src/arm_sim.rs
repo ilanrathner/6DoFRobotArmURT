@@ -241,7 +241,30 @@ impl ArmSim {
                 println!("Frame {}: {:?}", i, pose);
             }
             println!("-----------------------------\n");
-            // ---------------------------
+            
+            // --- 2. INVERSE KINEMATICS CALCULATION AND PRINTING ---
+            if let Some(ee_pose) = poses.last() {
+                match self.arm.solve_ik_from_pose(ee_pose) {
+                    Ok(angles) => {
+                        // The IK solution is typically very close to the current joint angles,
+                        // but printing it confirms the solver is running and returning valid data.
+                        let angles_formatted: Vec<String> = angles.iter()
+                            .map(|a| format!("{:.4}", a.to_degrees()))
+                            .collect();
+                        
+                        println!("--- Inverse Kinematics Solution ---");
+                        println!("Target Pose: P={:.3}, R=[...]", ee_pose.position);
+                        println!("Joint Angles (Degrees): [{}]", angles_formatted.join(", "));
+                        println!("---------------------------------\n");
+                    }
+                    Err(e) => {
+                        // This happens if the current pose is outside the calculated workspace
+                        println!("--- Inverse Kinematics FAILED ---");
+                        println!("Error: {}", e);
+                        println!("-------------------------------\n");
+                    }
+                }
+            }
             
             
             // Draw links (segments) and update joint sphere positions

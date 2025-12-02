@@ -17,7 +17,7 @@ pub trait IkSolver: Send + Sync {
         z: f64, 
         r: &Matrix3<f64>,
         link_lengths: &[f64], // <--- CHANGE: Now a dynamically sized slice
-    ) -> Result<[f64; 6], String>;
+    ) -> Result<Vec<f64>, String>;
 }
 
 // ----------------------------------------------------------------------
@@ -34,7 +34,7 @@ impl IkSolver for UrtIkSolver {
         x: f64, y: f64, z: f64,
         r: &Matrix3<f64>,
         link_lengths: &[f64], // <--- Slice input
-    ) -> Result<[f64; 6], String> {
+    ) -> Result<Vec<f64>, String> {
         
         // --- CHECK: Ensure the correct number of link lengths were provided ---
         if link_lengths.len() != 5 {
@@ -103,6 +103,6 @@ impl IkSolver for UrtIkSolver {
             return Err("One or more joint angles are invalid".into());
         }
         
-        Ok(thetas)
+        Ok(thetas.to_vec())
     }
 }

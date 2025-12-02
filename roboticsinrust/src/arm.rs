@@ -84,7 +84,7 @@ impl Arm {
 
     
     /// Solves IK using the End-Effector target pose (position + rotation matrix).
-    pub fn solve_ik_from_pose(&self, target_pose: &Pose) -> Result<[f64; 6], String> {
+    pub fn solve_ik_from_pose(&self, target_pose: &Pose) -> Result<Vec<f64>, String> {
         let x = target_pose.position.x;
         let y = target_pose.position.y;
         let z = target_pose.position.z;
@@ -101,7 +101,7 @@ impl Arm {
         &self, 
         x: f64, y: f64, z: f64, 
         yaw: f64, pitch: f64, roll: f64
-    ) -> Result<[f64; 6], String> {
+    ) -> Result<Vec<f64>, String> {
         
         let r = Pose::orientation_mat(yaw, pitch, roll); 
         let link_lengths = &self.ik_link_parameters; // Get the stored link parameters
