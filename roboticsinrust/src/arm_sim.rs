@@ -126,10 +126,10 @@ impl ArmSim {
         println!("q              -> quit\n");
 
         // Look-at target (focus point)
-        let target = Point3::new(0.0f32, 0.0f32, 0.0f32);
+        let target = Point3::new(0.0f32, 0.0f32, 30.0f32);
 
         // Eye (camera position)
-        let eye = Point3::new(0.0f32, -8.0f32, 2.0f32);
+        let eye = Point3::new(40.0f32, -80.0f32, 50.0f32);
 
         // Up vector (Z up)
         let up = Vector3::new(0.0f32, 0.0f32, 1.0f32);

@@ -15,11 +15,11 @@ fn main() {
 
     // DHRow::new(a, alpha_deg, d, theta_deg, FrameType)
     table.insert_row(DHRow::new(0.0, 0.0, 9.0, 0.0, FrameType::Revolute)); // joint 1
-    table.insert_row(DHRow::new(0.0, -PI/2.0, 0.0, -PI/2.0, FrameType::Revolute)); // joint 2
-    table.insert_row(DHRow::new(34.0, 0.0, 0.0, PI/2.0, FrameType::Revolute)); // joint 3
-    table.insert_row(DHRow::new(0.0, PI/2.0, 32.0, 0.0, FrameType::Revolute)); // joint 4
-    table.insert_row(DHRow::new(0.0, -PI/2.0, 0.0, 0.0, FrameType::Revolute)); // joint 5
-    table.insert_row(DHRow::new(0.0, PI/2.0, 15.0, 0.0, FrameType::Revolute)); // joint 6
+    table.insert_row(DHRow::new(0.0, -90.0, 0.0, -90.0, FrameType::Revolute)); // joint 2
+    table.insert_row(DHRow::new(34.0, 0.0, 0.0, 90.0, FrameType::Revolute)); // joint 3
+    table.insert_row(DHRow::new(0.0, 90.0, 32.0, 0.0, FrameType::Revolute)); // joint 4
+    table.insert_row(DHRow::new(0.0, -90.0, 0.0, 0.0, FrameType::Revolute)); // joint 5
+    table.insert_row(DHRow::new(0.0, 90.0, 15.0, 0.0, FrameType::Revolute)); // joint 6
     // Add an end effector fixed frame for visualization (optional)
     table.insert_row(DHRow::new(0.0, 0.0, 15.0, 0.0, FrameType::Fixed));
 

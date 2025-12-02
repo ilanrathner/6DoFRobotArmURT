@@ -355,4 +355,39 @@ impl Pose {
 
     /// Returns the z-axis of this frame (the joint axis direction).
     pub fn z_axis(&self) -> Vector3<f64> { self.rotation.column(2).into() }
+
+    /// Compute orientation matrix from yaw (Z), pitch (Y), roll (X).
+    /// Rotation order: Z * Y * X (yaw, pitch, roll).
+    pub fn orientation_mat(yaw: f64, pitch: f64, roll: f64) -> Matrix3<f64> {
+        // Rotation about X (Roll)
+        let x_rot = Matrix3::new(
+            1.0, 0.0, 0.0,
+            0.0, roll.cos(), -roll.sin(),
+            0.0, roll.sin(),  roll.cos(),
+        );
+
+        // Rotation about Y (Pitch)
+        let y_rot = Matrix3::new(
+            pitch.cos(), 0.0, pitch.sin(),
+            0.0, 1.0, 0.0,
+           -pitch.sin(), 0.0, pitch.cos(),
+        );
+
+        // Rotation about Z (Yaw)
+        let z_rot = Matrix3::new(
+            yaw.cos(), -yaw.sin(), 0.0,
+            yaw.sin(),  yaw.cos(), 0.0,
+            0.0, 0.0, 1.0,
+        );
+
+        // Combined Rotation: Z * Y * X
+        z_rot * y_rot * x_rot
+    }
+
+    /// NEW: Constructor helper to create a Pose directly from components.
+    pub fn from_components(x: f64, y: f64, z: f64, yaw: f64, pitch: f64, roll: f64) -> Self {
+        let position = Vector3::new(x, y, z);
+        let rotation = Self::orientation_mat(yaw, pitch, roll);
+        Self { position, rotation }
+    }
 }

@@ -1,4 +1,5 @@
 use crate::dh::{DHTable, Pose};
+use crate::inverse_kinematic_solvers::IkSolver; // <-- IMPORT TRAIT FROM CONSOLIDATED FILE
 
 use nalgebra::{DMatrix};
 
@@ -9,17 +10,19 @@ pub struct Arm {
     inv_jacobian: Option<DMatrix<f64>>, // Cached damped pseudo-inverse
     dirty: bool,                 // True if DH table changed since last FK / Jacobian
     damping: f64,                // Default damping for pseudo-inverse
+    ik_solver: Box<dyn IkSolver>, // Inverse Kinematics solver
 }
 
 impl Arm {
     /// Initialize arm with a DH table and optional damping
-    pub fn new(dh_table: DHTable, damping: Option<f64>) -> Self {
+    pub fn new(dh_table: DHTable, damping: Option<f64>, ik_solver: Box<dyn IkSolver>) -> Self {
         Self {
             dh_table,
             jacobian: None,
             inv_jacobian: None,
             dirty: true,
             damping: damping.unwrap_or(1e-4),
+            ik_solver,
         }
     }
 
@@ -75,5 +78,7 @@ impl Arm {
         self.update();
         self.inv_jacobian.as_ref().unwrap()
     }
+
+    
 
 }
