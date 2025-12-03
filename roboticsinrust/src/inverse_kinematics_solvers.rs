@@ -78,7 +78,7 @@ impl IkSolver for UrtIkSolver {
         // Step 5: theta3 (using law of cosines)
         let numerator = r_val.powi(2) + s.powi(2) - l2.powi(2) - l3.powi(2);
         let denom = 2.0 * l2 * l3;
-        let cos_theta3 = (numerator / denom);
+        let cos_theta3 = numerator / denom;
         //if cos_theta3.abs() > 1.0 {
         //    return Err("Target out of workspace: theta3 complex".into());
         //}
