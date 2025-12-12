@@ -47,6 +47,16 @@ impl Arm {
         &self.joints
     }
 
+    pub fn update_joint(&mut self, index: usize, joint: Joint) {
+        self.joints[index] = joint;
+        self.dirty = true;
+    }
+
+    pub fn update_joints(&mut self, joints: Vec<Joint>) {
+        self.joints = joints;
+        self.dirty = true;
+    }
+
     /// Compute / update cached FK, Jacobian, and inverse if dirty
     pub fn update(&mut self) {
         if self.dirty {

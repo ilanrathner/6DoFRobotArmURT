@@ -9,8 +9,6 @@ use dh::{DHTable, DHRow, FrameType};
 use arm::Arm;
 use arm_sim::ArmSim;
 
-use std::f64::consts::PI;
-
 fn main() {
     // URT robot 6 DOF arm
     let mut table = DHTable::new_empty();
