@@ -2,7 +2,7 @@ use kiss3d::window::Window;
 use kiss3d::camera::ArcBall;
 use kiss3d::scene::SceneNode;
 use kiss3d::text::Font;
-use kiss3d::nalgebra::{Translation3, Point2, Point3, Vector3, Matrix3}; 
+use kiss3d::nalgebra::{Translation3, Point2, Point3, Vector3, Matrix3, UnitQuaternion}; 
 use kiss3d::event::{Key, Action};
 use std::time::Duration;
 use std::fmt::Write;
@@ -71,11 +71,6 @@ impl ArmSim {
         println!("Reset velocities and joint vars to zero.");
     }
     
-    // ------------------------------------------------------------------
-    // UPDATED FRAME DRAWING HELPER FUNCTION
-    // Signature changed to accept a generic Pose struct.
-    // Access changed from .translation to .position.
-    // ------------------------------------------------------------------
     /// Draws a coordinate frame (X=Red, Y=Green, Z=Blue) given its pose and axis length.
     fn draw_frame_axes(
         window: &mut Window, 
@@ -115,13 +110,60 @@ impl ArmSim {
         window.draw_line(&pos, &y_end, &color_y);
         window.draw_line(&pos, &z_end, &color_z);
     }
+
+    //Function to draw a vertical board at specified height and offset
+    fn draw_board(
+        window: &mut Window, 
+        height: f64, 
+        x_offset: f64, 
+        width: f64, 
+        depth: f64
+    ) {
+        // --- 1. Calculate Center Position ---
+        // X: The offset along the X-axis.
+        // Y: 0.0, because the quad is centered on the X-axis (Y=0).
+        // Z: The bottom edge height + half the board's depth (Z dimension).
+        let center_pos = Point3::new(
+            x_offset as f32, 
+            0.0f32, 
+            (height + depth / 2.0) as f32
+        );
+
+        // --- 2. Define Orientation (Rotation) ---
+        // Goal: Rotate the default XY-plane quad to lie on the ZY-plane.
+        // This requires a 90-degree rotation (pi/2 radians) around the Y-axis.
+        
+        // Define the rotation angle and axis
+        let angle = std::f32::consts::FRAC_PI_2; // 90 degrees in radians
+        let axis = Vector3::y_axis(); // Y-axis
+
+        // Create the UnitQuaternion from the rotation axis and angle.
+        // `UnitQuaternion` automatically handles the conversion and normalization.
+        let rotation_quaternion = UnitQuaternion::from_axis_angle(&axis, angle);
+
+        // --- 3. Create the Quad ---
+        // Parameters: width (Y-dim), height (Z-dim), sub-divisions (optional)
+        let mut target_quad = window.add_quad(depth as f32, width as f32, 1, 1);
+        
+        // Set properties
+        target_quad.set_color(1.0, 1.0, 0.0); // Yellow color
+        
+        // --- 4. Apply Transformations ---
+        let translation = Translation3::from(center_pos.coords);
+        
+        // Apply the UnitQuaternion rotation
+        target_quad.set_local_rotation(rotation_quaternion);
+        
+        // Apply the Translation
+        target_quad.set_local_translation(translation);
+    }
     // ------------------------------------------------------------------
 
     pub fn run(&mut self) {
         println!("=== Continuous Arm Simulation (Kiss3d) ===");
         println!("Controls:");
-        println!("x/z, y/h, c/v  -> linear X/Y/Z +/-");
-        println!("a/s, d/f, g/j  -> angular Roll/Pitch/Yaw +/-");
+        println!("z/x, c/v, b/n  -> linear X/Y/Z +/-");
+        println!("a/s, d/f, g/h  -> angular Roll/Pitch/Yaw +/-"); //Roll is about x, pitch is about y, yaw is about z
         println!("space          -> reset");
         println!("q              -> quit\n");
 
@@ -162,6 +204,22 @@ impl ArmSim {
         // World frame is now created as a custom Pose
         let world_pose = Pose::new(Vector3::new(0.0, 0.0, 0.0), Matrix3::identity());
 
+        // --- CALL THE DRAW_BOARD FUNCTION ---
+        // Parameters: height, x_offset, width (Y), depth (Z)
+        let board_height = -5.0;   // Raised 0.5 units along Z
+        let board_offset = 35.0;   // Offset 35 units along X
+        let board_y_size = 90.0;   // Side edge length (Y-dim)
+        let board_z_size = 60.0;   // Bottom edge length (Z-dim)
+        
+        ArmSim::draw_board(
+            &mut window, 
+            board_height, 
+            board_offset, 
+            board_y_size, 
+            board_z_size
+        );
+        // ---------------------------------------------
+
         while window.render_with_camera(&mut camera) {
             // ... (Input and Physics Step remain the same)
             // --- Input Handling ---
@@ -175,12 +233,12 @@ impl ArmSim {
             }
             
             // Linear velocities
-            if window.get_key(Key::X) == Action::Press { self.task_vel[0] += 1.0; }
-            if window.get_key(Key::Z) == Action::Press { self.task_vel[0] += -1.0; }
-            if window.get_key(Key::Y) == Action::Press { self.task_vel[1] += 1.0; }
-            if window.get_key(Key::H) == Action::Press { self.task_vel[1] += -1.0; }
-            if window.get_key(Key::C) == Action::Press { self.task_vel[2] += 1.0; }
-            if window.get_key(Key::V) == Action::Press { self.task_vel[2] += -1.0; }
+            if window.get_key(Key::Z) == Action::Press { self.task_vel[0] += 1.0; }
+            if window.get_key(Key::X) == Action::Press { self.task_vel[0] += -1.0; }
+            if window.get_key(Key::C) == Action::Press { self.task_vel[1] += 1.0; }
+            if window.get_key(Key::V) == Action::Press { self.task_vel[1] += -1.0; }
+            if window.get_key(Key::B) == Action::Press { self.task_vel[2] += 1.0; }
+            if window.get_key(Key::N) == Action::Press { self.task_vel[2] += -1.0; }
 
             // Angular velocities
             if window.get_key(Key::A) == Action::Press { self.task_vel[3] += 1.0; }
@@ -188,7 +246,7 @@ impl ArmSim {
             if window.get_key(Key::D) == Action::Press { self.task_vel[4] += 1.0; }
             if window.get_key(Key::F) == Action::Press { self.task_vel[4] += -1.0; }
             if window.get_key(Key::G) == Action::Press { self.task_vel[5] += 1.0; }
-            if window.get_key(Key::J) == Action::Press { self.task_vel[5] += -1.0; }
+            if window.get_key(Key::H) == Action::Press { self.task_vel[5] += -1.0; }
 
 
             // Physics step
