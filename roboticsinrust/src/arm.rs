@@ -1,5 +1,5 @@
 use crate::dh::{DHTable, Pose};
-use crate::joint::{Joint};
+use crate::joint::{Joint, JointType};
 
 use crate::inverse_kinematics_solvers::IkSolver; // <-- IMPORT TRAIT 
 
@@ -47,14 +47,40 @@ impl Arm {
         &self.joints
     }
 
-    pub fn update_joint(&mut self, index: usize, joint: Joint) {
-        self.joints[index] = joint;
+
+        /// Update joint positions from a slice of f32
+    pub fn set_joint_positions(&mut self, positions: &[f32]) {
+        assert_eq!(positions.len(), self.joints.len(), "Position vector length mismatch");
+        for (joint, &pos) in self.joints.iter_mut().zip(positions.iter()) {
+            match joint.joint_type {
+                JointType::Revolute => joint.set_position_deg(pos as f64),
+                JointType::Prismatic => joint.set_position(pos as f64),
+            }
+        }
         self.dirty = true;
     }
 
-    pub fn update_joints(&mut self, joints: Vec<Joint>) {
-        self.joints = joints;
+    /// Update joint velocities from a slice of f32
+    pub fn set_joint_velocities(&mut self, velocities: &[f32]) {
+        assert_eq!(velocities.len(), self.joints.len(), "Velocity vector length mismatch");
+        for (joint, &vel) in self.joints.iter_mut().zip(velocities.iter()) {
+            joint.set_velocity(vel as f64);
+        }
         self.dirty = true;
+    }
+
+    /// Update both joint positions and velocities from slices of f32
+    pub fn set_joint_positions_and_velocities(&mut self, positions: &[f32], velocities: &[f32]) {
+        self.set_joint_positions(positions);
+        self.set_joint_velocities(velocities);
+    }
+
+    pub fn joint_positions(&self) -> Vec<f32> {
+        self.joints.iter().map(|j| j.position as f32).collect()
+    }
+
+    pub fn joint_velocities(&self) -> Vec<f32> {
+        self.joints.iter().map(|j| j.velocity as f32).collect()
     }
 
     /// Compute / update cached FK, Jacobian, and inverse if dirty

@@ -56,9 +56,9 @@ impl DHRow {
         let (sa, ca) = alpha.sin_cos();
 
         Matrix4::new(
-            ct, -st * ca,  st * sa, a * ct,
-            st,  ct * ca, -ct * sa, a * st,
-            0.0,    sa,      ca,       d,
+            ct, -st,  0.0, a,
+            ca*st,  ca * ct, -sa, -d*sa,
+            sa*st,    sa*ct,      ca,       d *ca,
             0.0,    0.0,     0.0,     1.0,
         )
     }

@@ -1,4 +1,4 @@
-use kiss3d::window::Window;
+use kiss3d::window::Window; 
 use kiss3d::camera::ArcBall;
 use kiss3d::scene::SceneNode;
 use kiss3d::text::Font;
@@ -7,366 +7,188 @@ use kiss3d::event::{Key, Action};
 use std::time::Duration;
 use std::fmt::Write;
 use crate::Arm;
-use crate::dh::Pose; // Import your custom Pose struct
-
-
-// NOTE: This struct should exist in your 'arm' module or another accessible file.
-// Included here for context to show where .position and .rotation come from.
-// pub struct Pose {
-//     pub position: Vector3<f64>,
-//     pub rotation: Matrix3<f64>,
-//     // ... methods ...
-// }
-
+use crate::dh::Pose;
 
 /// Simulation for task-space velocity control with continuous loop and non-blocking input.
 pub struct ArmSim {
     arm: Arm,
     task_vel: nalgebra::DVector<f64>,   // [vx, vy, vz, ω_roll, ω_pitch, ω_yaw]
-    joint_vars: Vec<f64>,
     dt: f64,
 }
 
 impl ArmSim {
-    // (new, step, reset functions remain unchanged)
-
     pub fn new(mut arm: Arm, dt: f64) -> Self {
-        let n = arm.dh_table().num_joints();
-        let joint_vars = vec![0.0f64; n];
-        arm.set_joint_variables(&joint_vars);
+        let n = arm.joints().len();
+        arm.set_joint_positions(&vec![0.0f32; n]);
+        arm.set_joint_velocities(&vec![0.0f32; n]);
 
         Self {
             arm,
             task_vel: nalgebra::DVector::zeros(6),
-            joint_vars,
             dt,
         }
     }
 
-    /// Integrate one step using the current velocities
+    /// Increment joint positions by a slice of f32 (assumes deltas are in degrees)
+    pub fn increment_joint_positions(&mut self, deltas: &[f32]) {
+        let current_positions = self.arm.joint_positions(); // already in f32
+        assert_eq!(deltas.len(), current_positions.len(), "Delta length mismatch");
+
+        // Add deltas in degrees
+        let new_positions: Vec<f32> = current_positions.iter()
+            .zip(deltas.iter())
+            .map(|(&p, &d)| p + d)
+            .collect();
+
+        // Convert current positions from radians to degrees
+        let new_positions_deg: Vec<f32> = new_positions.iter()
+            .map(|&p| p.to_degrees())
+            .collect();
+
+        // Update joint positions
+        self.arm.set_joint_positions(&new_positions_deg);
+    }
+
+
+    /// Increment joint velocities by f32 slice
+    pub fn increment_joint_velocities(&mut self, deltas: &[f32]) {
+        let current_velocities = self.arm.joint_velocities();
+        let new_velocities: Vec<f32> = current_velocities.iter().zip(deltas)
+            .map(|(&v, &d)| v + d)
+            .collect();
+        self.arm.set_joint_velocities(&new_velocities);
+    }
+
+    /// Step simulation using task-space velocity (Jacobian inverse)
     fn step(&mut self) -> Result<(), String> {
         let inv_j = self.arm.inv_jacobian();
-        let n = inv_j.nrows();
-
-        if n == 0 || inv_j.ncols() != 6 {
+        if inv_j.nrows() == 0 || inv_j.ncols() != 6 {
             return Err("Jacobian shape mismatch".into());
         }
 
         let theta_dot = inv_j * &self.task_vel;
-        for i in 0..n {
-            self.joint_vars[i] += theta_dot[i] * self.dt;
-        }
-
-        self.arm.set_joint_variables(&self.joint_vars);
-        self.arm.update();
+        let deltas: Vec<f32> = theta_dot.iter().map(|v| (*v as f32) * self.dt as f32).collect();
+        self.increment_joint_positions(&deltas);
         Ok(())
     }
 
-    
     pub fn reset(&mut self) {
         self.task_vel.fill(0.0);
-        for v in &mut self.joint_vars { *v = 0.0; }
-        self.arm.set_joint_variables(&self.joint_vars);
-        self.arm.update();
-        println!("Reset velocities and joint vars to zero.");
+        let n = self.arm.joints().len();
+        self.arm.set_joint_positions(&vec![0.0f32; n]);
+        self.arm.set_joint_velocities(&vec![0.0f32; n]);
+        println!("Reset velocities and joint positions to zero.");
     }
-    
-    /// Draws a coordinate frame (X=Red, Y=Green, Z=Blue) given its pose and axis length.
-    fn draw_frame_axes(
-        window: &mut Window, 
-        pose: &Pose, // Takes your custom Pose struct
-        length: f32
-    ) {
-        // Convert the f64 components to f32 for kiss3d drawing
-        // FIX: Accesses .position instead of .translation
+
+    // ----- Visualization Helpers -----
+    fn draw_frame_axes(window: &mut Window, pose: &Pose, length: f32) {
         let pos = Point3::new(
             pose.position.x as f32,
             pose.position.y as f32,
             pose.position.z as f32,
         );
-
-        // Get the rotation matrix (f32) to find the direction vectors
-        // FIX: Directly uses .rotation (Matrix3) and casts it.
         let rot_mat = pose.rotation.cast::<f32>();
-        
-        // The columns of the rotation matrix are the local X, Y, Z axis direction vectors.
-        // We use .column(index) to get the direction vector.
-        let x_dir: Vector3<f32> = rot_mat.column(0).into_owned(); // X-axis (column 0)
-        let y_dir: Vector3<f32> = rot_mat.column(1).into_owned(); // Y-axis (column 1)
-        let z_dir: Vector3<f32> = rot_mat.column(2).into_owned(); // Z-axis (column 2)
+        let x_dir: Vector3<f32> = rot_mat.column(0).into_owned();
+        let y_dir: Vector3<f32> = rot_mat.column(1).into_owned();
+        let z_dir: Vector3<f32> = rot_mat.column(2).into_owned();
 
-        // Calculate the end points of the axes
-        let x_end = pos + x_dir * length;
-        let y_end = pos + y_dir * length;
-        let z_end = pos + z_dir * length;
-
-        // Define colors
-        let color_x = Point3::new(1.0, 0.0, 0.0); // Red
-        let color_y = Point3::new(0.0, 1.0, 0.0); // Green
-        let color_z = Point3::new(0.0, 0.0, 1.0); // Blue
-
-        // Draw the axes
-        window.draw_line(&pos, &x_end, &color_x);
-        window.draw_line(&pos, &y_end, &color_y);
-        window.draw_line(&pos, &z_end, &color_z);
+        window.draw_line(&pos, &(pos + x_dir * length), &Point3::new(1.0, 0.0, 0.0));
+        window.draw_line(&pos, &(pos + y_dir * length), &Point3::new(0.0, 1.0, 0.0));
+        window.draw_line(&pos, &(pos + z_dir * length), &Point3::new(0.0, 0.0, 1.0));
     }
 
-    //Function to draw a vertical board at specified height and offset
-    fn draw_board(
-        window: &mut Window, 
-        height: f64, 
-        x_offset: f64, 
-        width: f64, 
-        depth: f64
-    ) {
-        // --- 1. Calculate Center Position ---
-        // X: The offset along the X-axis.
-        // Y: 0.0, because the quad is centered on the X-axis (Y=0).
-        // Z: The bottom edge height + half the board's depth (Z dimension).
-        let center_pos = Point3::new(
-            x_offset as f32, 
-            0.0f32, 
-            (height + depth / 2.0) as f32
-        );
-
-        // --- 2. Define Orientation (Rotation) ---
-        // Goal: Rotate the default XY-plane quad to lie on the ZY-plane.
-        // This requires a 90-degree rotation (pi/2 radians) around the Y-axis.
-        
-        // Define the rotation angle and axis
-        let angle = std::f32::consts::FRAC_PI_2; // 90 degrees in radians
-        let axis = Vector3::y_axis(); // Y-axis
-
-        // Create the UnitQuaternion from the rotation axis and angle.
-        // `UnitQuaternion` automatically handles the conversion and normalization.
-        let rotation_quaternion = UnitQuaternion::from_axis_angle(&axis, angle);
-
-        // --- 3. Create the Quad ---
-        // Parameters: width (Y-dim), height (Z-dim), sub-divisions (optional)
+    fn draw_board(window: &mut Window, height: f64, x_offset: f64, width: f64, depth: f64) {
+        let center_pos = Point3::new(x_offset as f32, 0.0, (height + depth / 2.0) as f32);
+        let rotation_quaternion = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), std::f32::consts::FRAC_PI_2);
         let mut target_quad = window.add_quad(depth as f32, width as f32, 1, 1);
-        
-        // Set properties
-        target_quad.set_color(1.0, 1.0, 0.0); // Yellow color
-        
-        // --- 4. Apply Transformations ---
-        let translation = Translation3::from(center_pos.coords);
-        
-        // Apply the UnitQuaternion rotation
+        target_quad.set_color(1.0, 1.0, 0.0);
         target_quad.set_local_rotation(rotation_quaternion);
-        
-        // Apply the Translation
-        target_quad.set_local_translation(translation);
+        target_quad.set_local_translation(Translation3::from(center_pos.coords));
     }
-    // ------------------------------------------------------------------
 
     pub fn run(&mut self) {
         println!("=== Continuous Arm Simulation (Kiss3d) ===");
         println!("Controls:");
         println!("z/x, c/v, b/n  -> linear X/Y/Z +/-");
-        println!("a/s, d/f, g/h  -> angular Roll/Pitch/Yaw +/-"); //Roll is about x, pitch is about y, yaw is about z
+        println!("a/s, d/f, g/h  -> angular Roll/Pitch/Yaw +/-");
         println!("space          -> reset");
         println!("q              -> quit\n");
 
-        // Look-at target (focus point)
         let target = Point3::new(0.0f32, 0.0f32, 30.0f32);
-
-        // Eye (camera position)
         let eye = Point3::new(40.0f32, -80.0f32, 50.0f32);
-
-        // Up vector (Z up)
         let up = Vector3::new(0.0f32, 0.0f32, 1.0f32);
-
-        // Create ArcBall
         let mut camera = ArcBall::new(eye, target);
-
-        // Set up-vector (preferred if you want +Z to be up)
         camera.set_up_axis(up);
 
-        // Create a window
         let mut window = Window::new("Robotic Arm Simulation");
-
-        // optionally unlimited FPS
         window.set_framerate_limit(None);
         let font = Font::default();
 
         let mut joint_nodes: Vec<SceneNode> = Vec::new();
-        for _ in 0..=self.joint_vars.len() {
+        for _ in 0..=self.arm.joints().len() {
             let mut s = window.add_sphere(0.05);
             s.set_color(1.0, 0.0, 0.0);
             joint_nodes.push(s);
         }
-        
 
         let dt_duration = Duration::from_secs_f64(self.dt);
         let world_axis_len = 1.0;
         let frame_axis_len = 0.25;
-        
-        // World frame is now created as a custom Pose
         let world_pose = Pose::new(Vector3::new(0.0, 0.0, 0.0), Matrix3::identity());
 
-        // --- CALL THE DRAW_BOARD FUNCTION ---
-        // Parameters: height, x_offset, width (Y), depth (Z)
-        let board_height = -5.0;   // Raised 0.5 units along Z
-        let board_offset = 35.0;   // Offset 35 units along X
-        let board_y_size = 90.0;   // Side edge length (Y-dim)
-        let board_z_size = 60.0;   // Bottom edge length (Z-dim)
-        
-        ArmSim::draw_board(
-            &mut window, 
-            board_height, 
-            board_offset, 
-            board_y_size, 
-            board_z_size
-        );
-        // ---------------------------------------------
+        ArmSim::draw_board(&mut window, -5.0, 35.0, 90.0, 60.0);
 
         while window.render_with_camera(&mut camera) {
-            // ... (Input and Physics Step remain the same)
-            // --- Input Handling ---
-            if window.get_key(Key::Q) == Action::Press {
-                println!("Quitting simulation.");
-                break;
-            }
+            if window.get_key(Key::Q) == Action::Press { break; }
+            if window.get_key(Key::Space) == Action::Press { self.reset(); }
 
-            if window.get_key(Key::Space) == Action::Press {
-                self.reset();
-            }
-            
             // Linear velocities
             if window.get_key(Key::Z) == Action::Press { self.task_vel[0] += 1.0; }
-            if window.get_key(Key::X) == Action::Press { self.task_vel[0] += -1.0; }
+            if window.get_key(Key::X) == Action::Press { self.task_vel[0] -= 1.0; }
             if window.get_key(Key::C) == Action::Press { self.task_vel[1] += 1.0; }
-            if window.get_key(Key::V) == Action::Press { self.task_vel[1] += -1.0; }
+            if window.get_key(Key::V) == Action::Press { self.task_vel[1] -= 1.0; }
             if window.get_key(Key::B) == Action::Press { self.task_vel[2] += 1.0; }
-            if window.get_key(Key::N) == Action::Press { self.task_vel[2] += -1.0; }
+            if window.get_key(Key::N) == Action::Press { self.task_vel[2] -= 1.0; }
 
             // Angular velocities
             if window.get_key(Key::A) == Action::Press { self.task_vel[3] += 1.0; }
-            if window.get_key(Key::S) == Action::Press { self.task_vel[3] += -1.0; }
+            if window.get_key(Key::S) == Action::Press { self.task_vel[3] -= 1.0; }
             if window.get_key(Key::D) == Action::Press { self.task_vel[4] += 1.0; }
-            if window.get_key(Key::F) == Action::Press { self.task_vel[4] += -1.0; }
+            if window.get_key(Key::F) == Action::Press { self.task_vel[4] -= 1.0; }
             if window.get_key(Key::G) == Action::Press { self.task_vel[5] += 1.0; }
-            if window.get_key(Key::H) == Action::Press { self.task_vel[5] += -1.0; }
+            if window.get_key(Key::H) == Action::Press { self.task_vel[5] -= 1.0; }
 
-
-            // Physics step
-            if let Err(e) = self.step() {
-                println!("Step failed: {}", e);
-            }
-
-            if let Err(e) = self.step() {
-                println!("Step failed: {}", e);
-            }
-
-            // --- Visualization Update ---
-            // --- 1. Task Space Velocity Text Overlay ---
-            let mut vel_text = String::new();
-            // Use write! to efficiently format the vector components
-            write!(&mut vel_text, 
-                "Vx: {:.2}, Vy: {:.2}, Vz: {:.2}\n", 
-                self.task_vel[0], self.task_vel[1], self.task_vel[2]
-            ).unwrap();
-            write!(&mut vel_text, 
-                "Roll: {:.2}, Pitch: {:.2}, Yaw: {:.2}", 
-                self.task_vel[3], self.task_vel[4], self.task_vel[5]
-            ).unwrap();
-
-            // Draw the text in the top-left corner
-            window.draw_text(
-                &vel_text, 
-                &Point2::new(10.0, 10.0), // Screen coordinates (x, y, z=0)
-                60.0, // Text size
-                &font,
-                &Point3::new(1.0, 1.0, 1.0) // White color
-            );
-            // Draw the global (World) coordinate axes using the helper function.
-            // FIX: Uses the custom 'world_pose' struct instance.
-            ArmSim::draw_frame_axes(
-                &mut window, 
-                &world_pose, 
-                world_axis_len
-            );
-            
-            //print table
-            self.arm.dh_table().print_table();
+            let _ = self.step();
 
             let poses = self.arm.frame_poses();
-        // --- PRINTING THE POSES ---
-            // The '{:?}' debug formatter will print the entire vector and its contents.
-            println!("--- Current Arm Poses ({}) ---", poses.len());
-            for (i, pose) in poses.iter().enumerate() {
-                // You can print each pose separately for better readability:
-                println!("Frame {}: {:?}", i, pose);
-            }
-            println!("-----------------------------\n");
-            
-            // --- 2. INVERSE KINEMATICS CALCULATION AND PRINTING ---
-            if let Some(ee_pose) = poses.last() {
-                match self.arm.solve_ik_from_pose(ee_pose) {
-                    Ok(angles) => {
-                        // The IK solution is typically very close to the current joint angles,
-                        // but printing it confirms the solver is running and returning valid data.
-                        let angles_formatted: Vec<String> = angles.iter()
-                            .map(|a| format!("{:.4}", a.to_degrees()))
-                            .collect();
-                        
-                        println!("--- Inverse Kinematics Solution ---");
-                        println!("Target Pose: P={:.3}, R=[...]", ee_pose.position);
-                        println!("Joint Angles (Degrees): [{}]", angles_formatted.join(", "));
-                        println!("---------------------------------\n");
-                    }
-                    Err(e) => {
-                        // This happens if the current pose is outside the calculated workspace
-                        println!("--- Inverse Kinematics FAILED ---");
-                        println!("Error: {}", e);
-                        println!("-------------------------------\n");
-                    }
-                }
-            }
-            
-            
-            // Draw links (segments) and update joint sphere positions
+            ArmSim::draw_frame_axes(&mut window, &world_pose, world_axis_len);
+
             let mut prev_pos = Point3::new(
                 world_pose.position.x as f32,
                 world_pose.position.y as f32,
                 world_pose.position.z as f32,
             );
-            
-            for i in 0..poses.len() {
-                let current_pose = &poses[i];
-                
-                // Convert current position (f64) to f32 Point3
-                let current_pos = Point3::new(
-                    current_pose.position.x as f32,
-                    current_pose.position.y as f32,
-                    current_pose.position.z as f32,
-                );
-                
-                // Set the sphere position
-                joint_nodes[i].set_local_translation(Translation3::from(current_pos));
-                
-                // 1. Draw the link from the previous joint to the current joint.
-                // This handles the link from World Origin (for i=0) onwards.
-                window.draw_line(
-                    &prev_pos, 
-                    &current_pos, 
-                    &Point3::new(0.0, 0.0, 1.0), // Blue color for links
-                );
 
-                //Draw the local axis for the current joint frame (Frame 1 to EE)
-                ArmSim::draw_frame_axes(
-                    &mut window, 
-                    current_pose, 
-                    frame_axis_len
+            for i in 0..poses.len() {
+                let current_pos = Point3::new(
+                    poses[i].position.x as f32,
+                    poses[i].position.y as f32,
+                    poses[i].position.z as f32,
                 );
-                
-                // 2. Save the current position for the next iteration.
-                // This avoids re-calculating the previous position from `poses[i-1]`.
+                joint_nodes[i].set_local_translation(Translation3::from(current_pos));
+                window.draw_line(&prev_pos, &current_pos, &Point3::new(0.0, 0.0, 1.0));
+                ArmSim::draw_frame_axes(&mut window, &poses[i], frame_axis_len);
                 prev_pos = current_pos;
             }
-            
 
-            // Optional: add a small sleep to limit loop rate
+            let mut vel_text = String::new();
+            write!(&mut vel_text,
+                "Vx: {:.2}, Vy: {:.2}, Vz: {:.2}\nRoll: {:.2}, Pitch: {:.2}, Yaw: {:.2}",
+                self.task_vel[0], self.task_vel[1], self.task_vel[2],
+                self.task_vel[3], self.task_vel[4], self.task_vel[5]
+            ).unwrap();
+            window.draw_text(&vel_text, &Point2::new(10.0, 10.0), 60.0, &font, &Point3::new(1.0, 1.0, 1.0));
+
             std::thread::sleep(dt_duration);
         }
     }
