@@ -5,7 +5,7 @@ use crate::joint::{Joint, JointType};
 
 use crate::inverse_kinematics_solvers::IkSolver; // <-- IMPORT TRAIT 
 
-use nalgebra::{SMatrix, SVector, DMatrix};
+use nalgebra::{SMatrix, SVector};
 
 
 pub struct Arm<const N: usize> {
@@ -13,7 +13,7 @@ pub struct Arm<const N: usize> {
     joints: [Joint ; N],        // The robot's joints
 
     jacobian: Option<SMatrix<f64, 6, N>>,  // Cached Jacobian
-    inv_jacobian: Option<DMatrix<f64>>, // Cached damped pseudo-inverse
+    inv_jacobian: Option<SMatrix<f64, N, 6>>, // Cached damped pseudo-inverse
 
     dirty: bool,                 // True if DH table changed since last FK / Jacobian
     damping: f64,                // Default damping for pseudo-inverse
@@ -44,11 +44,11 @@ impl<const N: usize> Arm<N> {
         }
     }
 
-    pub fn dh_table(&self) -> &DHTable {
+    pub fn dh_table(&self) -> &DHTable<N> {
         &self.dh_table
     }
 
-    pub fn joints(&self) -> &Vec<Joint> {
+    pub fn joints(&self) -> &[Joint; N] {
         &self.joints
     }
 
@@ -116,7 +116,7 @@ impl<const N: usize> Arm<N> {
     }
 
     /// Get the current inverse Jacobian (computes if dirty)
-    pub fn inv_jacobian(&mut self) -> &DMatrix<f64> {
+    pub fn inv_jacobian(&mut self) -> &SMatrix<f64, N, 6> {
         self.update();
         self.inv_jacobian.as_ref().unwrap()
     }

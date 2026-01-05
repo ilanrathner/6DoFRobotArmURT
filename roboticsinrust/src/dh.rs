@@ -1,5 +1,5 @@
 use crate::joint::{Joint, JointType};
-use nalgebra::{Matrix4, Matrix3,  Vector3, DMatrix, SMatrix};
+use nalgebra::{Matrix4, Matrix3,  Vector3, SMatrix};
 
 
 pub enum FrameType {
@@ -234,33 +234,40 @@ impl<const N: usize> DHTable<N> {
         j
     }
 
-    //Computes the damped moore penrose pseudo inverse. Use a small labda value 
-    pub fn damped_moore_penrose_pseudo_inverse(&self, joints: &[Joint; N], maybe_j: Option<&SMatrix<f64, 6, N>>, lambda: Option<f64>) -> DMatrix<f64> {
-        // We may or may not need to store the computed Jacobian
-        let j_storage; 
-        // Get Jacobian either from argument or compute it
+    //Computes the damped moore penrose pseudo inverse. Use a small labda value
+    pub fn damped_moore_penrose_pseudo_inverse(
+        &self,
+        joints: &[Joint; N],
+        maybe_j: Option<&SMatrix<f64, 6, N>>,
+        lambda: Option<f64>,
+    ) -> SMatrix<f64, N, 6> {
+        // Get or compute the Jacobian (stack-allocated)
+        let j_storage;
         let j = match maybe_j {
-            Some(j_ref) => j_ref,  // borrow if provided
+            Some(j_ref) => j_ref,
             None => {
-                j_storage = self.compute_jacobian(joints); // store it in a variable
-                &j_storage  // then take a reference to it
+                j_storage = self.compute_jacobian(joints); // returns SMatrix<6,N>
+                &j_storage
             }
         };
 
-        let jt = j.transpose();
-        let jtj = &jt * j;
+        // Compute Jᵀ once (N x 6)
+        let jt: SMatrix<f64, N, 6> = j.transpose();
 
-        let lambda_val = lambda.unwrap_or(1e-4); // default if not provided
+        // Compute Jᵀ * J (N x N)
+        let mut damped: SMatrix<f64, N, N> = &jt * j;
 
-        let damped = jtj + SMatrix::<f64, N, N>::identity() * lambda_val.powi(2);
+        // Add damping lambda^2 to diagonal
+        let lambda_val = lambda.unwrap_or(1e-4);
+        for i in 0..N {
+            damped[(i, i)] += lambda_val.powi(2);
+        }
 
-        let damped_dyn = nalgebra::DMatrix::from(damped);
+        // Invert damped matrix (N x N)
+        let inv = damped.try_inverse().expect("Matrix not invertible even with damping");
 
-        let inv = damped_dyn
-            .try_inverse()
-            .expect("Matrix not invertible even with damping");
-
-        inv * jt
+        // Multiply by Jᵀ (N x 6) to get pseudo-inverse
+        inv * jt // SMatrix<N, 6>
     }
 
 
