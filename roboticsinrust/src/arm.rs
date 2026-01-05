@@ -1,28 +1,33 @@
+use std::usize;
+
 use crate::dh::{DHTable, Pose};
 use crate::joint::{Joint, JointType};
 
 use crate::inverse_kinematics_solvers::IkSolver; // <-- IMPORT TRAIT 
 
-use nalgebra::{DMatrix};
+use nalgebra::{SMatrix, SVector, DMatrix};
 
 
-pub struct Arm {
-    dh_table: DHTable,           // The robot's DH table
-    joints: Vec<Joint>,        // The robot's joints
-    jacobian: Option<DMatrix<f64>>,  // Cached Jacobian
+pub struct Arm<const N: usize> {
+    dh_table: DHTable<N>,           // The robot's DH table
+    joints: [Joint ; N],        // The robot's joints
+
+    jacobian: Option<SMatrix<f64, 6, N>>,  // Cached Jacobian
     inv_jacobian: Option<DMatrix<f64>>, // Cached damped pseudo-inverse
+
     dirty: bool,                 // True if DH table changed since last FK / Jacobian
     damping: f64,                // Default damping for pseudo-inverse
+
     ik_solver: Box<dyn IkSolver>, // Inverse Kinematics solver
     /// Generic list of link parameters needed by the specific IkSolver.
     ik_link_parameters: Vec<f64>,
 }
 
-impl Arm {
+impl<const N: usize> Arm<N> {
     /// Initialize arm with a DH table and optional damping
     pub fn new(
-        dh_table: DHTable,
-        joints: Vec<Joint>,
+        dh_table: DHTable<N>,
+        joints: [Joint; N],
         damping: Option<f64>,
         ik_solver: Box<dyn IkSolver>,
         ik_link_parameters: Vec<f64>
@@ -49,7 +54,7 @@ impl Arm {
 
 
         /// Update joint positions from a slice of f32
-    pub fn set_joint_positions(&mut self, positions: &[f32]) {
+    pub fn set_joint_positions(&mut self, positions: &[f32; N]) {
         assert_eq!(positions.len(), self.joints.len(), "Position vector length mismatch");
         for (joint, &pos) in self.joints.iter_mut().zip(positions.iter()) {
             match joint.joint_type {
@@ -61,7 +66,7 @@ impl Arm {
     }
 
     /// Update joint velocities from a slice of f32
-    pub fn set_joint_velocities(&mut self, velocities: &[f32]) {
+    pub fn set_joint_velocities(&mut self, velocities: &[f32; N]) {
         assert_eq!(velocities.len(), self.joints.len(), "Velocity vector length mismatch");
         for (joint, &vel) in self.joints.iter_mut().zip(velocities.iter()) {
             joint.set_velocity(vel as f64);
@@ -69,19 +74,14 @@ impl Arm {
         self.dirty = true;
     }
 
-    /// Update both joint positions and velocities from slices of f32
-    pub fn set_joint_positions_and_velocities(&mut self, positions: &[f32], velocities: &[f32]) {
-        self.set_joint_positions(positions);
-        self.set_joint_velocities(velocities);
+    pub fn joint_positions(&self) -> SVector<f32, N> {
+        SVector::from_iterator(self.joints.iter().map(|j| j.position as f32))
     }
 
-    pub fn joint_positions(&self) -> Vec<f32> {
-        self.joints.iter().map(|j| j.position as f32).collect()
+    pub fn joint_velocities(&self) -> SVector<f32, N> {
+        SVector::from_iterator(self.joints.iter().map(|j| j.velocity as f32))
     }
 
-    pub fn joint_velocities(&self) -> Vec<f32> {
-        self.joints.iter().map(|j| j.velocity as f32).collect()
-    }
 
     /// Compute / update cached FK, Jacobian, and inverse if dirty
     pub fn update(&mut self) {
@@ -110,7 +110,7 @@ impl Arm {
     }
 
     /// Get the current Jacobian (computes if dirty)
-    pub fn jacobian(&mut self) -> &DMatrix<f64> {
+    pub fn jacobian(&mut self) -> &SMatrix<f64, 6, N> {
         self.update();
         self.jacobian.as_ref().unwrap()
     }
