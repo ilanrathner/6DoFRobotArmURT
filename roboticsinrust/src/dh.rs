@@ -346,7 +346,7 @@ impl Pose {
         z_rot * y_rot * x_rot
     }
 
-    /// NEW: Constructor helper to create a Pose directly from components.
+    /// Constructor helper to create a Pose directly from components.
     pub fn from_components(x: f64, y: f64, z: f64, yaw: f64, pitch: f64, roll: f64) -> Self {
         let position = Vector3::new(x, y, z);
         let rotation = Self::orientation_mat(yaw, pitch, roll);

@@ -74,12 +74,12 @@ impl<const N: usize> Arm<N> {
         self.dirty = true;
     }
 
-    pub fn joint_positions(&self) -> SVector<f32, N> {
-        SVector::from_iterator(self.joints.iter().map(|j| j.position as f32))
+    pub fn joint_positions(&self) -> SVector<f64, N> {
+        SVector::from_iterator(self.joints.iter().map(|j| j.position as f64))
     }
 
-    pub fn joint_velocities(&self) -> SVector<f32, N> {
-        SVector::from_iterator(self.joints.iter().map(|j| j.velocity as f32))
+    pub fn joint_velocities(&self) -> SVector<f64, N> {
+        SVector::from_iterator(self.joints.iter().map(|j| j.velocity as f64))
     }
 
 

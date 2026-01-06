@@ -10,7 +10,7 @@ pub type GainMat  = Matrix6<f64>;
 /// ---------------------------------------------------------------------------
 /// Conversion helpers (boundary between Vec and fixed-size math)
 /// ---------------------------------------------------------------------------
-
+/// 
 fn vec_to_vector6(v: &Vec<f64>) -> Result<Vector6<f64>, String> {
     if v.len() != 6 {
         return Err(format!("Expected Vec<f64> of length 6, got {}", v.len()));

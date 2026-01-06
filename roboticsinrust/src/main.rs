@@ -3,6 +3,7 @@ mod arm;
 mod inverse_kinematics_solvers;
 mod arm_sim;
 mod joint;
+mod task_space_pid_controller;
 
 use joint::{Joint, JointType};
 use dh::{DHTable, DHRow, FrameType};
