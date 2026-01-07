@@ -8,75 +8,55 @@ use std::time::Duration;
 use std::fmt::Write;
 use crate::Arm;
 use crate::dh::Pose;
+use crate::task_space_pid_controller::TaskSpacePidController;
 
 /// Simulation for task-space velocity control with continuous loop and non-blocking input.
-pub struct ArmSim {
-    arm: Arm,
-    task_vel: nalgebra::DVector<f64>,   // [vx, vy, vz, ω_roll, ω_pitch, ω_yaw]
+pub struct ArmSim<const F: usize, const J: usize> {
+    arm: Arm<F, J>,
+    controller: TaskSpacePidController,
+    task_vel: [f64; 6],   // [vx, vy, vz, ω_roll, ω_pitch, ω_yaw]
+    joint_vel: [f64; J],
+    joint_pos: [f64; J],
     dt: f64,
 }
 
-impl ArmSim {
-    pub fn new(mut arm: Arm, dt: f64) -> Self {
-        let n = arm.joints().len();
-        arm.set_joint_positions(&vec![0.0f32; n]);
-        arm.set_joint_velocities(&vec![0.0f32; n]);
+impl<const F: usize, const J: usize> ArmSim<F, J> {
+    pub fn new(mut arm: Arm<F, J>, controller: TaskSpacePidController, dt: f64) -> Self {
+        arm.set_joint_positions(&[0.0f64; J]);
+        arm.set_joint_velocities(&[0.0f64; J]);
 
         Self {
             arm,
-            task_vel: nalgebra::DVector::zeros(6),
+            controller,
+            task_vel: [0.0; 6],
+            joint_vel: [0.0; J],
+            joint_pos: [0.0; J],
             dt,
         }
     }
 
-    /// Increment joint positions by a slice of f32 (assumes deltas are in degrees)
-    pub fn increment_joint_positions(&mut self, deltas: &[f32]) {
-        let current_positions = self.arm.joint_positions(); // already in f32
-        assert_eq!(deltas.len(), current_positions.len(), "Delta length mismatch");
-
-        // Add deltas in degrees
-        let new_positions: Vec<f32> = current_positions.iter()
-            .zip(deltas.iter())
-            .map(|(&p, &d)| p + d)
-            .collect();
-
-        // Convert current positions from radians to degrees
-        let new_positions_deg: Vec<f32> = new_positions.iter()
-            .map(|&p| p.to_degrees())
-            .collect();
-
-        // Update joint positions
-        self.arm.set_joint_positions(&new_positions_deg);
-    }
-
-
-    /// Increment joint velocities by f32 slice
-    pub fn increment_joint_velocities(&mut self, deltas: &[f32]) {
-        let current_velocities = self.arm.joint_velocities();
-        let new_velocities: Vec<f32> = current_velocities.iter().zip(deltas)
-            .map(|(&v, &d)| v + d)
-            .collect();
-        self.arm.set_joint_velocities(&new_velocities);
-    }
-
     /// Step simulation using task-space velocity (Jacobian inverse)
     fn step(&mut self) -> Result<(), String> {
-        let inv_j = self.arm.inv_jacobian();
-        if inv_j.nrows() == 0 || inv_j.ncols() != 6 {
-            return Err("Jacobian shape mismatch".into());
+        let theta_dot = self.controller.compute(&mut self.arm, &self.task_vel, self.dt);
+            // Update internal joint state
+        for i in 0..J {
+            self.joint_vel[i] = theta_dot[i];
+            self.joint_pos[i] += self.joint_vel[i] * self.dt;
         }
 
-        let theta_dot = inv_j * &self.task_vel;
-        let deltas: Vec<f32> = theta_dot.iter().map(|v| (*v as f32) * self.dt as f32).collect();
-        self.increment_joint_positions(&deltas);
+        // Send updated positions & velocities to arm
+        self.arm.set_joint_positions(&self.joint_pos);
+        self.arm.set_joint_velocities(&self.joint_vel);
+
         Ok(())
     }
 
     pub fn reset(&mut self) {
-        self.task_vel.fill(0.0);
-        let n = self.arm.joints().len();
-        self.arm.set_joint_positions(&vec![0.0f32; n]);
-        self.arm.set_joint_velocities(&vec![0.0f32; n]);
+        self.task_vel = [0.0; 6];
+        self.joint_vel = [0.0; J];
+        self.joint_pos = [0.0; J];
+        self.arm.set_joint_positions(&[0.0f64; J]);
+        self.arm.set_joint_velocities(&[0.0f64; J]);
         println!("Reset velocities and joint positions to zero.");
     }
 
@@ -125,7 +105,7 @@ impl ArmSim {
         let font = Font::default();
 
         let mut joint_nodes: Vec<SceneNode> = Vec::new();
-        for _ in 0..=self.arm.joints().len() {
+        for _ in 0..F {
             let mut s = window.add_sphere(0.05);
             s.set_color(1.0, 0.0, 0.0);
             joint_nodes.push(s);
@@ -136,7 +116,7 @@ impl ArmSim {
         let frame_axis_len = 0.25;
         let world_pose = Pose::new(Vector3::new(0.0, 0.0, 0.0), Matrix3::identity());
 
-        ArmSim::draw_board(&mut window, -5.0, 35.0, 90.0, 60.0);
+        ArmSim::<F, J>::draw_board(&mut window, -5.0, 35.0, 90.0, 60.0);
 
         while window.render_with_camera(&mut camera) {
             if window.get_key(Key::Q) == Action::Press { break; }
@@ -161,7 +141,7 @@ impl ArmSim {
             let _ = self.step();
 
             let poses = self.arm.frame_poses();
-            ArmSim::draw_frame_axes(&mut window, &world_pose, world_axis_len);
+            ArmSim::<F, J>::draw_frame_axes(&mut window, &world_pose, world_axis_len);
 
             let mut prev_pos = Point3::new(
                 world_pose.position.x as f32,
@@ -177,7 +157,7 @@ impl ArmSim {
                 );
                 joint_nodes[i].set_local_translation(Translation3::from(current_pos));
                 window.draw_line(&prev_pos, &current_pos, &Point3::new(0.0, 0.0, 1.0));
-                ArmSim::draw_frame_axes(&mut window, &poses[i], frame_axis_len);
+                ArmSim::<F, J>::draw_frame_axes(&mut window, &poses[i], frame_axis_len);
                 prev_pos = current_pos;
             }
 

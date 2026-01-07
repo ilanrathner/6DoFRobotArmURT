@@ -117,27 +117,20 @@ impl DHRow {
 // -----------------------------------------------------------------------------
 // DHTable: manages all frames and joints
 // -----------------------------------------------------------------------------
-pub struct DHTable<const N: usize> {
-    rows: Vec<DHRow>,
+pub struct DHTable<const F: usize, const J: usize> {
+    rows: [DHRow; F],
 }
 
-impl<const N: usize> DHTable<N> {
-    pub fn new_empty() -> Self {
-        Self { rows: Vec::new() }
+impl<const F: usize, const J: usize> DHTable<F, J> {
+    pub fn new(rows: [DHRow; F]) -> Self {
+        Self { rows }
     }
 
-    pub fn insert_row(&mut self, row: DHRow) {
-        self.rows.push(row);
-    }
+    pub fn num_frames(&self) -> usize { F }
 
-    pub fn num_frames(&self) -> usize { self.rows.len() }
+    pub fn transformation_matrix_j_i(&self, initial_row_index: usize, final_row_index:usize, joints: &[Joint; J]) -> Matrix4<f64> {
 
-    pub fn transformation_matrix_j_i(&self, initial_row_index: usize, final_row_index:usize, joints: &[Joint; N]) -> Matrix4<f64> {
-  
-        if self.rows.is_empty() {
-            panic!("DH table is empty");
-        }
-        let r = self.num_frames();
+        let r = F;
 
         let j = initial_row_index;
         let i = final_row_index;
@@ -158,25 +151,25 @@ impl<const N: usize> DHTable<N> {
         transformation_matrix
     }
 
-    pub fn forward_kinematics(&self, joints: &[Joint; N]) -> Matrix4<f64> {
-        self.transformation_matrix_j_i(0, self.rows.len(), joints)
+    pub fn forward_kinematics(&self, joints: &[Joint; J]) -> Matrix4<f64> {
+        self.transformation_matrix_j_i(0, F, joints)
     }
 
      /// Compute poses for each frame relative to base frame (0).
-    pub fn all_poses(&self, joints: &[Joint; N]) -> Vec<Pose> {
-        let mut poses = Vec::new();
+    pub fn all_poses(&self, joints: &[Joint; J]) -> [Pose; F] {
+        let mut poses: [Pose; F] = std::array::from_fn(|_|  Pose::identity());
         let mut transform = Matrix4::<f64>::identity();
 
-        for row in &self.rows {
-            transform *= row.get_row_trans_mat(joints);
-            poses.push(Pose::from_homogeneous(&transform));
+        for i in 0..F {
+            transform *= self.rows[i].get_row_trans_mat(joints);
+            poses[i] = Pose::from_homogeneous(&transform);
         }
 
         poses
     }
 
-    pub fn get_frame_pose(&self, frame_index: usize, joints: &[Joint; N]) -> Pose {
-        assert!(frame_index < self.rows.len());
+    pub fn get_frame_pose(&self, frame_index: usize, joints: &[Joint; J]) -> Pose {
+        assert!(frame_index < F);
         let mut transform = Matrix4::<f64>::identity();
         for k in 0..frame_index {
             transform *= self.rows[k].get_row_trans_mat(joints);
@@ -184,8 +177,8 @@ impl<const N: usize> DHTable<N> {
         Pose::from_homogeneous(&transform)
     }
     /// Get pose between frame j and frame i (exclusive i index convention)
-    pub fn pose_between_j_i(&self, j: usize, i: usize, joints: &[Joint; N]) -> Pose {
-        assert!(j < i && i <= self.rows.len());
+    pub fn pose_between_j_i(&self, j: usize, i: usize, joints: &[Joint; J]) -> Pose {
+        assert!(j < i && i <= F);
         let mut transform = Matrix4::<f64>::identity();
         for k in j..i {
             transform *= self.rows[k].get_row_trans_mat(joints);
@@ -194,53 +187,42 @@ impl<const N: usize> DHTable<N> {
     }
 
     //Jacobian matrix. Always has 6 rows for linear and angular portion
-    pub fn compute_jacobian(&self, joints: &[Joint; N]) -> SMatrix<f64, 6, N> {
-        // Number of frames defined in dh table. End effector is typically last frame in last row
-        let num_joints = joints.len();
-        assert!(num_joints > 0, "No joints defined in DH table");
-
+    pub fn compute_jacobian(&self, joints: &[Joint; J]) -> SMatrix<f64, 6, J> {
         let poses = self.all_poses(joints);
-        let p_end = &poses.last().unwrap().position;
+        let p_end = poses[F - 1].position;
 
-        let mut j = SMatrix::<f64,6, N>::zeros(); 
-        let mut joint_col = 0;
+        let mut j = SMatrix::<f64,6, J>::zeros(); 
 
         for (i, row) in self.rows.iter().enumerate() {
             if row.frame_type.is_fixed() { continue; }
+            let joint_index = row.joint_index.expect("Joint row missing joint_index");
 
             let pose_i = &poses[i];
             let z_i = pose_i.z_axis();
             let p_i = pose_i.position;
             let p_diff = p_end - p_i;
 
-            let (linear, angular) = match joints[joint_col].joint_type {
+
+            let (linear, angular) = match joints[joint_index].joint_type {
                 JointType::Revolute => (z_i.cross(&p_diff), z_i),
                 JointType::Prismatic => (z_i, Vector3::zeros()),
             };
 
             for k in 0..3 {
-                j[(k, joint_col)] = linear[k];
-                j[(k + 3, joint_col)] = angular[k];
+                j[(k, joint_index)] = linear[k];
+                j[(k + 3, joint_index)] = angular[k];
             }
-
-            joint_col += 1;
-        }
-
-        debug_assert!(
-            joint_col == N,
-            "Number of joint rows does not match N"
-        );
-        
+        }       
         j
     }
 
     //Computes the damped moore penrose pseudo inverse. Use a small labda value
     pub fn damped_moore_penrose_pseudo_inverse(
         &self,
-        joints: &[Joint; N],
-        maybe_j: Option<&SMatrix<f64, 6, N>>,
+        joints: &[Joint; J],
+        maybe_j: Option<&SMatrix<f64, 6, J>>,
         lambda: Option<f64>,
-    ) -> SMatrix<f64, N, 6> {
+    ) -> SMatrix<f64, J, 6> {
         // Get or compute the Jacobian (stack-allocated)
         let j_storage;
         let j = match maybe_j {
@@ -251,27 +233,27 @@ impl<const N: usize> DHTable<N> {
             }
         };
 
-        // Compute Jᵀ once (N x 6)
-        let jt: SMatrix<f64, N, 6> = j.transpose();
+        // Compute Jᵀ once (J x 6)
+        let jt: SMatrix<f64, J, 6> = j.transpose();
 
-        // Compute Jᵀ * J (N x N)
-        let mut damped: SMatrix<f64, N, N> = &jt * j;
+        // Compute Jᵀ * J (J x J)
+        let mut damped: SMatrix<f64, J, J> = &jt * j;
 
         // Add damping lambda^2 to diagonal
         let lambda_val = lambda.unwrap_or(1e-4);
-        for i in 0..N {
+        for i in 0..J {
             damped[(i, i)] += lambda_val.powi(2);
         }
 
-        // Invert damped matrix (N x N)
+        // Invert damped matrix (J x J)
         let inv = damped.try_inverse().expect("Matrix not invertible even with damping");
 
-        // Multiply by Jᵀ (N x 6) to get pseudo-inverse
-        inv * jt // SMatrix<N, 6>
+        // Multiply by Jᵀ (J x 6) to get pseudo-inverse
+        inv * jt // SMatrix<J, 6>
     }
 
 
-    pub fn print_table(&self, joints: &[Joint; N]) {
+    pub fn print_table(&self, joints: &[Joint; J]) {
         println!("================ DH TABLE ================");
         for (i, row) in self.rows.iter().enumerate() {
             row.print_row(i, joints);
@@ -307,6 +289,13 @@ impl Pose {
         let rotation = m.fixed_slice::<3, 3>(0, 0).into();
         let position = Vector3::new(m[(0, 3)], m[(1, 3)], m[(2, 3)]);
         Self { position, rotation }
+    }
+
+    pub fn identity() -> Self {
+        Self {
+            position: Vector3::zeros(),
+            rotation: Matrix3::identity(),
+        }
     }
 
     /// Returns the x-axis of this frame.

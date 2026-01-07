@@ -25,14 +25,14 @@ impl TaskSpacePidController {
         }
     }
 
-    pub fn compute<const N: usize>(
+    pub fn compute<const F: usize, const J: usize>(
         &mut self,
-        arm: &mut Arm<N>,
-        xd_des_arr: [f64; 6],
+        arm: &mut Arm<F, J>,
+        xd_des_arr: &[f64; 6],
         dt: f64,
-    ) -> SVector<f64, N> {
+    ) -> [f64; J] {
 
-        let xd_des = SVector::<f64, 6>::from_row_slice(&xd_des_arr);
+        let xd_des = SVector::<f64, 6>::from_row_slice(xd_des_arr);
 
         let qd = arm.joint_velocities();
         let j = arm.jacobian();
@@ -51,7 +51,13 @@ impl TaskSpacePidController {
 
         self.prev_error = error;
 
-        let j_pinv = arm.inv_jacobian();
-        j_pinv * u_task
+        // Map task-space command to joint velocities
+    let qd_task = arm.inv_jacobian() * u_task; // SVector<f64, J>
+
+    // Convert to array for motor output
+    // Convert SVector to fixed-size array
+    let mut qd_array = [0.0f64; J];
+    qd_array.copy_from_slice(qd_task.as_slice());
+    qd_array
     }
 }

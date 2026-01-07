@@ -8,12 +8,12 @@ use crate::inverse_kinematics_solvers::IkSolver; // <-- IMPORT TRAIT
 use nalgebra::{SMatrix, SVector};
 
 
-pub struct Arm<const N: usize> {
-    dh_table: DHTable<N>,           // The robot's DH table
-    joints: [Joint ; N],        // The robot's joints
+pub struct Arm<const F: usize, const J: usize> {
+    dh_table: DHTable<F, J>,           // The robot's DH table
+    joints: [Joint ; J],        // The robot's joints
 
-    jacobian: Option<SMatrix<f64, 6, N>>,  // Cached Jacobian
-    inv_jacobian: Option<SMatrix<f64, N, 6>>, // Cached damped pseudo-inverse
+    jacobian: Option<SMatrix<f64, 6, J>>,  // Cached Jacobian
+    inv_jacobian: Option<SMatrix<f64, J, 6>>, // Cached damped pseudo-inverse
 
     dirty: bool,                 // True if DH table changed since last FK / Jacobian
     damping: f64,                // Default damping for pseudo-inverse
@@ -23,11 +23,11 @@ pub struct Arm<const N: usize> {
     ik_link_parameters: Vec<f64>,
 }
 
-impl<const N: usize> Arm<N> {
+impl<const F: usize, const J: usize> Arm<F, J> {
     /// Initialize arm with a DH table and optional damping
     pub fn new(
-        dh_table: DHTable<N>,
-        joints: [Joint; N],
+        dh_table: DHTable<F, J>,
+        joints: [Joint; J],
         damping: Option<f64>,
         ik_solver: Box<dyn IkSolver>,
         ik_link_parameters: Vec<f64>
@@ -44,17 +44,17 @@ impl<const N: usize> Arm<N> {
         }
     }
 
-    pub fn dh_table(&self) -> &DHTable<N> {
+    pub fn dh_table(&self) -> &DHTable<F, J> {
         &self.dh_table
     }
 
-    pub fn joints(&self) -> &[Joint; N] {
+    pub fn joints(&self) -> &[Joint; J] {
         &self.joints
     }
 
 
         /// Update joint positions from a slice of f32
-    pub fn set_joint_positions(&mut self, positions: &[f32; N]) {
+    pub fn set_joint_positions(&mut self, positions: &[f64; J]) {
         assert_eq!(positions.len(), self.joints.len(), "Position vector length mismatch");
         for (joint, &pos) in self.joints.iter_mut().zip(positions.iter()) {
             match joint.joint_type {
@@ -66,7 +66,7 @@ impl<const N: usize> Arm<N> {
     }
 
     /// Update joint velocities from a slice of f32
-    pub fn set_joint_velocities(&mut self, velocities: &[f32; N]) {
+    pub fn set_joint_velocities(&mut self, velocities: &[f64; J]) {
         assert_eq!(velocities.len(), self.joints.len(), "Velocity vector length mismatch");
         for (joint, &vel) in self.joints.iter_mut().zip(velocities.iter()) {
             joint.set_velocity(vel as f64);
@@ -74,11 +74,11 @@ impl<const N: usize> Arm<N> {
         self.dirty = true;
     }
 
-    pub fn joint_positions(&self) -> SVector<f64, N> {
+    pub fn joint_positions(&self) -> SVector<f64, J> {
         SVector::from_iterator(self.joints.iter().map(|j| j.position as f64))
     }
 
-    pub fn joint_velocities(&self) -> SVector<f64, N> {
+    pub fn joint_velocities(&self) -> SVector<f64, J> {
         SVector::from_iterator(self.joints.iter().map(|j| j.velocity as f64))
     }
 
@@ -102,21 +102,21 @@ impl<const N: usize> Arm<N> {
     /// Get the current end-effector pose (computes if dirty)
     pub fn ee_pose(&self) -> Pose {
         // Pass self.joints to DHTable
-        self.dh_table.get_frame_pose(self.dh_table.num_frames() - 1, &self.joints)
+        self.dh_table.get_frame_pose(F - 1, &self.joints)
     }
 
-    pub fn frame_poses(&self) -> Vec<Pose> {
+    pub fn frame_poses(&self) -> [Pose; F] {
         self.dh_table.all_poses(&self.joints)
     }
 
     /// Get the current Jacobian (computes if dirty)
-    pub fn jacobian(&mut self) -> &SMatrix<f64, 6, N> {
+    pub fn jacobian(&mut self) -> &SMatrix<f64, 6, J> {
         self.update();
         self.jacobian.as_ref().unwrap()
     }
 
     /// Get the current inverse Jacobian (computes if dirty)
-    pub fn inv_jacobian(&mut self) -> &SMatrix<f64, N, 6> {
+    pub fn inv_jacobian(&mut self) -> &SMatrix<f64, J, 6> {
         self.update();
         self.inv_jacobian.as_ref().unwrap()
     }
