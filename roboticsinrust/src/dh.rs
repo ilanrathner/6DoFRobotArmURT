@@ -125,9 +125,6 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
     pub fn new(rows: [DHRow; F]) -> Self {
         Self { rows }
     }
-
-    pub fn num_frames(&self) -> usize { F }
-
     pub fn transformation_matrix_j_i(&self, initial_row_index: usize, final_row_index:usize, joints: &[Joint; J]) -> Matrix4<f64> {
 
         let r = F;
@@ -149,10 +146,6 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
         }
 
         transformation_matrix
-    }
-
-    pub fn forward_kinematics(&self, joints: &[Joint; J]) -> Matrix4<f64> {
-        self.transformation_matrix_j_i(0, F, joints)
     }
 
      /// Compute poses for each frame relative to base frame (0).
@@ -216,42 +209,74 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
         j
     }
 
-    //Computes the damped moore penrose pseudo inverse. Use a small labda value
+    /// Computes the damped Moore-Penrose pseudo-inverse.
+    /// Works for any number of joints J by automatically switching between
+    /// the Right and Left pseudo-inverse based on the system's DOF.
     pub fn damped_moore_penrose_pseudo_inverse(
         &self,
         joints: &[Joint; J],
         maybe_j: Option<&SMatrix<f64, 6, J>>,
         lambda: Option<f64>,
     ) -> SMatrix<f64, J, 6> {
-        // Get or compute the Jacobian (stack-allocated)
+        // 1. Get or compute the Jacobian (6 x J)
         let j_storage;
         let j = match maybe_j {
             Some(j_ref) => j_ref,
             None => {
-                j_storage = self.compute_jacobian(joints); // returns SMatrix<6,N>
+                j_storage = self.compute_jacobian(joints);
                 &j_storage
             }
         };
 
-        // Compute Jᵀ once (J x 6)
-        let jt: SMatrix<f64, J, 6> = j.transpose();
-
-        // Compute Jᵀ * J (J x J)
-        let mut damped: SMatrix<f64, J, J> = &jt * j;
-
-        // Add damping lambda^2 to diagonal
+        // 2. Pre-compute Transpose and Damping value
+        let jt = j.transpose(); // (J x 6)
         let lambda_val = lambda.unwrap_or(1e-4);
-        for i in 0..J {
-            damped[(i, i)] += lambda_val.powi(2);
+        let l2 = lambda_val.powi(2);
+
+        // 3. Conditional: Choose method based on Joint count J
+        // If J >= 6, we use the Right Inverse (minimizes joint velocities).
+        // If J < 6, we use the Left Inverse (minimizes task error).
+        if J >= 6 {
+            // --- RIGHT PSEUDO-INVERSE (Redundant/Full-DOF) ---
+            // Formula: Jᵀ * (J * Jᵀ + λ²I)⁻¹
+            
+            let mut damped_inner: SMatrix<f64, 6, 6> = j * jt;
+            
+            // Add damping to the 6x6 diagonal
+            for i in 0..6 {
+                damped_inner[(i, i)] += l2;
+            }
+
+            // Invert 6x6 and multiply by Jᵀ
+            match damped_inner.try_inverse() {
+                Some(inv) => jt * inv,
+                None => {
+                    // Fallback if matrix is still singular (e.g. NaNs in Jacobian)
+                    eprintln!("Warning: Right inverse failed, returning zeros");
+                    SMatrix::<f64, J, 6>::zeros()
+                }
+            }
+        } else {
+            // --- LEFT PSEUDO-INVERSE (Under-actuated) ---
+            // Formula: (Jᵀ * J + λ²I)⁻¹ * Jᵀ
+            
+            let mut damped_inner: SMatrix<f64, J, J> = jt * j;
+            
+            // Add damping to the J x J diagonal
+            for i in 0..J {
+                damped_inner[(i, i)] += l2;
+            }
+
+            // Invert JxJ and multiply Jᵀ
+            match damped_inner.try_inverse() {
+                Some(inv) => inv * jt,
+                None => {
+                    eprintln!("Warning: Left inverse failed, returning zeros");
+                    SMatrix::<f64, J, 6>::zeros()
+                }
+            }
         }
-
-        // Invert damped matrix (J x J)
-        let inv = damped.try_inverse().expect("Matrix not invertible even with damping");
-
-        // Multiply by Jᵀ (J x 6) to get pseudo-inverse
-        inv * jt // SMatrix<J, 6>
     }
-
 
     pub fn print_table(&self, joints: &[Joint; J]) {
         println!("================ DH TABLE ================");

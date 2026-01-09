@@ -48,12 +48,7 @@ impl<const F: usize, const J: usize> Arm<F, J> {
         &self.dh_table
     }
 
-    pub fn joints(&self) -> &[Joint; J] {
-        &self.joints
-    }
-
-
-        /// Update joint positions from a slice of f32
+    /// Update joint positions from a slice of f32
     pub fn set_joint_positions(&mut self, positions: &[f64; J]) {
         assert_eq!(positions.len(), self.joints.len(), "Position vector length mismatch");
         for (joint, &pos) in self.joints.iter_mut().zip(positions.iter()) {
@@ -72,6 +67,10 @@ impl<const F: usize, const J: usize> Arm<F, J> {
             joint.set_velocity(vel as f64);
         }
         self.dirty = true;
+    }
+
+    pub fn joints(&self) -> &[Joint; J] {
+        &self.joints
     }
 
     pub fn joint_positions(&self) -> SVector<f64, J> {

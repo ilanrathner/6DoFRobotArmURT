@@ -22,7 +22,11 @@ pub struct ArmSim<const F: usize, const J: usize> {
 
 impl<const F: usize, const J: usize> ArmSim<F, J> {
     pub fn new(mut arm: Arm<F, J>, controller: TaskSpacePidController, dt: f64) -> Self {
-        arm.set_joint_positions(&[0.0f64; J]);
+        let mut q0 = [0.0f64; J];
+        if J >= 2 {
+            q0[1] = 45.0;
+        }
+        arm.set_joint_positions(&q0);
         arm.set_joint_velocities(&[0.0f64; J]);
 
         Self {
@@ -30,7 +34,7 @@ impl<const F: usize, const J: usize> ArmSim<F, J> {
             controller,
             task_vel: [0.0; 6],
             joint_vel: [0.0; J],
-            joint_pos: [0.0; J],
+            joint_pos: q0,
             dt,
         }
     }
@@ -38,7 +42,8 @@ impl<const F: usize, const J: usize> ArmSim<F, J> {
     /// Step simulation using task-space velocity (Jacobian inverse)
     fn step(&mut self) -> Result<(), String> {
         let theta_dot = self.controller.compute(&mut self.arm, &self.task_vel, self.dt);
-            // Update internal joint state
+        //println!("{:?} -> {:?}", self.task_vel, theta_dot);
+        // Update internal joint state
         for i in 0..J {
             self.joint_vel[i] = theta_dot[i];
             self.joint_pos[i] += self.joint_vel[i] * self.dt;
@@ -168,6 +173,7 @@ impl<const F: usize, const J: usize> ArmSim<F, J> {
                 self.task_vel[3], self.task_vel[4], self.task_vel[5]
             ).unwrap();
             window.draw_text(&vel_text, &Point2::new(10.0, 10.0), 60.0, &font, &Point3::new(1.0, 1.0, 1.0));
+            
 
             std::thread::sleep(dt_duration);
         }
