@@ -38,7 +38,7 @@ impl TaskSpacePidController {
             prev_error: SVector::zeros(),
             x_ref: Vector3::zeros(),
             r_ref: Matrix3::identity(),
-            holding: true,
+            holding: false,
             cycle_count: 0,
             orthonorm_interval: 50, // adjust as needed
         }
@@ -73,8 +73,8 @@ impl TaskSpacePidController {
         &mut self,
         arm: &mut Arm<F, J>,
         xd_des_arr: &[f64; 6],       // desired task-space velocity (world-frame)
-        motor_vels: &[f64; J],
         motor_pos: &[f64; J],
+        motor_vels: &[f64; J],
         dt: f64,
     ) -> [f64; J] {
         // --- 1️⃣ Update arm state from motor readings
@@ -109,6 +109,7 @@ impl TaskSpacePidController {
             if self.cycle_count % self.orthonorm_interval == 0 {
                 self.r_ref = self.svd_orthonormalize(&self.r_ref);
             }
+            println!(">>> JOYSTICK ACTIVE | v_des: {:.3}, w_des: {:.3}", v_des.norm(), w_des.norm());
 
         } else {
             // HOLD MODE: freeze reference
@@ -117,9 +118,15 @@ impl TaskSpacePidController {
                 self.x_ref = ee_pose.position;
                 self.r_ref = ee_pose.rotation;
                 self.holding = true;
+                println!(">>> JOYSTICK RELEASED | HOLDING POSITION");
             }
             // Reference frozen, PID will still correct gravity sag
         }
+
+        println!("--- CONTROLLER STATE ---");
+        println!("Mode: {}", if self.holding { "HOLDING" } else { "TRACKING" });
+        println!("EE Pos:  {:.4?}", ee_pose.position.as_slice());
+        println!("Ref Pos: {:.4?}", self.x_ref.as_slice());
 
         // --- 6️⃣ Compute position error
         let e_pos = self.x_ref - ee_pose.position;
@@ -137,6 +144,7 @@ impl TaskSpacePidController {
 
         // --- 8️⃣ Assemble full 6D task-space error
         let mut error = SVector::<f64, 6>::zeros();
+        println!("Pos Error: {:.4?} | Ori Error: {:.4?}", e_pos.as_slice(), e_ori.as_slice());
         error.fixed_rows_mut::<3>(0).copy_from(&e_pos);
         error.fixed_rows_mut::<3>(3).copy_from(&e_ori);
 

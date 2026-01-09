@@ -41,7 +41,7 @@ impl<const F: usize, const J: usize> ArmSim<F, J> {
 
     /// Step simulation using task-space velocity (Jacobian inverse)
     fn step(&mut self) -> Result<(), String> {
-        let theta_dot = self.controller.compute(&mut self.arm, &self.task_vel, self.dt);
+        let theta_dot = self.controller.compute(&mut self.arm, &self.task_vel, &self.joint_pos, &self.joint_vel, self.dt);
         //println!("{:?} -> {:?}", self.task_vel, theta_dot);
         // Update internal joint state
         for i in 0..J {

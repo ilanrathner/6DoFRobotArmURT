@@ -61,7 +61,7 @@ fn main() {
     let dt = 0.05; // 50 ms per step
 
     let controller = TaskSpacePidController::new(
-        SVector::<f64, 6>::from_element(0.0), // kp
+        SVector::<f64, 6>::from_element(0.01), // kp
         SVector::<f64, 6>::from_element(0.0), // ki
         SVector::<f64, 6>::from_element(0.0), // kd
     );
