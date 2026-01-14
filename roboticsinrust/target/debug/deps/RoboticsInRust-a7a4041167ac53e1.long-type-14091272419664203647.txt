@@ -1,2 +1,0 @@
-_: From<nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, ViewStorage<'_, f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::Const<1>, nalgebra::Const<3>>>>
-nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, ViewStorage<'_, f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::Const<1>, nalgebra::Const<3>>>

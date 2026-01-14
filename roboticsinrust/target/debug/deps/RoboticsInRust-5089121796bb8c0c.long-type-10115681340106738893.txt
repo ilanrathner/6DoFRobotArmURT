@@ -1,3 +1,0 @@
-kiss3d::nalgebra::Matrix<f32, kiss3d::nalgebra::Const<3>, kiss3d::nalgebra::Const<1>, kiss3d::nalgebra::ArrayStorage<f32, 3, 1>>
-nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, ViewStorage<'_, f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::Const<1>, nalgebra::Const<3>>>
-kiss3d::nalgebra::Matrix<f32, kiss3d::nalgebra::Const<3>, kiss3d::nalgebra::Const<1>, kiss3d::nalgebra::ArrayStorage<f32, 3, 1>>: From<nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, ViewStorage<'_, f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::Const<1>, nalgebra::Const<3>>>>

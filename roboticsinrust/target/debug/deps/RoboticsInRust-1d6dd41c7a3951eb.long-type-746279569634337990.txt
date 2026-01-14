@@ -1,1 +1,0 @@
-Matrix<_, Dynamic, Dynamic, VecStorage<_, Dynamic, Dynamic>>: From<Matrix<f64, Const<N>, Const<N>, ArrayStorage<f64, N, N>>>
