@@ -55,6 +55,7 @@ impl DHRow {
         let (st, ct) = theta.sin_cos();
         let (sa, ca) = alpha.sin_cos();
 
+        // DH Transformation Matrix T(x)*R(alpha)*T(z)*R(theta)
         Matrix4::new(
             ct, -st,  0.0, a,
             ca*st,  ca * ct, -sa, -d*sa,

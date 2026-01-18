@@ -92,7 +92,7 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
         println!("=== Continuous Arm Simulation (Kiss3d) ===");
         println!("Controls:");
         println!("z/x, c/v, b/n  -> linear X/Y/Z +/-");
-        println!("a/s, d/f, g/h  -> angular Roll/Pitch/Yaw +/-");
+        println!("a/s, d/f, g/h  -> angular X/Y/Z +/-");
         println!("space          -> reset");
         println!("q              -> quit\n");
 
@@ -165,7 +165,7 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
 
             let mut vel_text = String::new();
             write!(&mut vel_text,
-                "Vx: {:.2}, Vy: {:.2}, Vz: {:.2}\nRoll: {:.2}, Pitch: {:.2}, Yaw: {:.2}",
+                "Vx: {:.2}, Vy: {:.2}, Vz: {:.2}\nWx: {:.2}, Wy: {:.2}, Wz: {:.2}",
                 self.task_vel[0], self.task_vel[1], self.task_vel[2],
                 self.task_vel[3], self.task_vel[4], self.task_vel[5]
             ).unwrap();
