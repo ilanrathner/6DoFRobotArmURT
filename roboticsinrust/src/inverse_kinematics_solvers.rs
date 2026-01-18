@@ -5,7 +5,7 @@ use nalgebra::Matrix3;
 // ----------------------------------------------------------------------
 
 /// Defines the interface that all Inverse Kinematics solvers must implement.
-pub trait IkSolver: Send + Sync {
+pub trait IkSolver<const J: usize> {
     /// Solves the inverse kinematics problem for a given target pose components and link lengths.
     /// The number of required link lengths is specific to the solver implementation.
     /// 
@@ -17,7 +17,7 @@ pub trait IkSolver: Send + Sync {
         z: f64, 
         r: &Matrix3<f64>,
         link_lengths: &[f64], // <--- CHANGE: Now a dynamically sized slice
-    ) -> Result<Vec<f64>, String>;
+    ) -> Result<[f64; J], String>;
 }
 
 // ----------------------------------------------------------------------
@@ -27,14 +27,14 @@ pub trait IkSolver: Send + Sync {
 /// Concrete struct for the URT arm's closed-form IK solver.
 pub struct UrtIkSolver;
 
-impl IkSolver for UrtIkSolver {
+impl IkSolver<6> for UrtIkSolver {
     /// Solves IK for the URT arm, which requires exactly 5 link lengths.
     fn solve_ik(
         &self,
         x: f64, y: f64, z: f64,
         r: &Matrix3<f64>,
         link_lengths: &[f64], // <--- Slice input
-    ) -> Result<Vec<f64>, String> {
+    ) -> Result<[f64; 6], String> {
         
         // --- CHECK: Ensure the correct number of link lengths were provided ---
         if link_lengths.len() != 5 {
@@ -122,6 +122,6 @@ impl IkSolver for UrtIkSolver {
             // ------------------------------
         }
         
-        Ok(thetas.to_vec())
+        Ok(thetas)
     }
 }

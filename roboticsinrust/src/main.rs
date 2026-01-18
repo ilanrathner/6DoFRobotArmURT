@@ -13,6 +13,8 @@ use arm_sim::ArmSim;
 
 use nalgebra::SVector;
 
+use crate::inverse_kinematics_solvers::UrtIkSolver;
+
 const NUM_FRAMES: usize = 7;
 const NUM_JOINTS: usize = 6;
 
@@ -49,11 +51,11 @@ fn main() {
     ];
 
     // Create Arm with default damping
-    let arm = Arm::<NUM_FRAMES, NUM_JOINTS>::new(
+    let arm = Arm::<NUM_FRAMES, NUM_JOINTS, UrtIkSolver>::new(
         table,
         joints,
         None, // Use default damping
-        Box::new(inverse_kinematics_solvers::UrtIkSolver),
+        UrtIkSolver,
         urt_ik_link_parameters,
     );
 
@@ -61,7 +63,7 @@ fn main() {
     let dt = 0.05; // 50 ms per step
 
     let controller = TaskSpacePidController::new(
-        SVector::<f64, 6>::from_element(0.01), // kp
+        SVector::<f64, 6>::from_element(0.0), // kp
         SVector::<f64, 6>::from_element(0.0), // ki
         SVector::<f64, 6>::from_element(0.0), // kd
     );

@@ -8,7 +8,7 @@ use crate::inverse_kinematics_solvers::IkSolver; // <-- IMPORT TRAIT
 use nalgebra::{SMatrix, SVector};
 
 
-pub struct Arm<const F: usize, const J: usize> {
+pub struct Arm<const F: usize, const J: usize, S: IkSolver<J>> {
     dh_table: DHTable<F, J>,           // The robot's DH table
     joints: [Joint ; J],        // The robot's joints
 
@@ -18,18 +18,18 @@ pub struct Arm<const F: usize, const J: usize> {
     dirty: bool,                 // True if DH table changed since last FK / Jacobian
     damping: f64,                // Default damping for pseudo-inverse
 
-    ik_solver: Box<dyn IkSolver>, // Inverse Kinematics solver
+    ik_solver: S, // Inverse Kinematics solver
     /// Generic list of link parameters needed by the specific IkSolver.
     ik_link_parameters: Vec<f64>,
 }
 
-impl<const F: usize, const J: usize> Arm<F, J> {
+impl<const F: usize, const J: usize, S: IkSolver<J>> Arm<F, J, S> {
     /// Initialize arm with a DH table and optional damping
     pub fn new(
         dh_table: DHTable<F, J>,
         joints: [Joint; J],
         damping: Option<f64>,
-        ik_solver: Box<dyn IkSolver>,
+        ik_solver: S,
         ik_link_parameters: Vec<f64>
     ) -> Self {
         Self {
@@ -99,9 +99,9 @@ impl<const F: usize, const J: usize> Arm<F, J> {
     }
 
     /// Get the current end-effector pose (computes if dirty)
-    pub fn ee_pose(&self) -> Pose {
+    pub fn frame_pose(&self, frame_index: usize) -> Pose {
         // Pass self.joints to DHTable
-        self.dh_table.get_frame_pose(F - 1, &self.joints)
+        self.dh_table.get_frame_pose(frame_index, &self.joints)
     }
 
     pub fn frame_poses(&self) -> [Pose; F] {
@@ -121,7 +121,7 @@ impl<const F: usize, const J: usize> Arm<F, J> {
     }
 
     /// Solves IK using the End-Effector target pose (position + rotation matrix)
-    pub fn solve_ik_from_pose(&self, target_pose: &Pose) -> Result<Vec<f64>, String> {
+    pub fn solve_ik_from_pose(&self, target_pose: &Pose) -> Result<[f64; J], String> {
         let x = target_pose.position.x;
         let y = target_pose.position.y;
         let z = target_pose.position.z;
@@ -136,7 +136,7 @@ impl<const F: usize, const J: usize> Arm<F, J> {
         &self, 
         x: f64, y: f64, z: f64, 
         yaw: f64, pitch: f64, roll: f64
-    ) -> Result<Vec<f64>, String> {
+    ) -> Result<[f64; J], String> {
         let r = Pose::orientation_mat(yaw, pitch, roll); 
         let link_lengths = &self.ik_link_parameters;
 

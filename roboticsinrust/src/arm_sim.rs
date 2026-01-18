@@ -9,10 +9,11 @@ use std::fmt::Write;
 use crate::Arm;
 use crate::dh::Pose;
 use crate::task_space_pid_controller::TaskSpacePidController;
+use crate::inverse_kinematics_solvers::IkSolver;
 
 /// Simulation for task-space velocity control with continuous loop and non-blocking input.
-pub struct ArmSim<const F: usize, const J: usize> {
-    arm: Arm<F, J>,
+pub struct ArmSim<const F: usize, const J: usize, S: IkSolver<J>> {
+    arm: Arm<F, J, S>,
     controller: TaskSpacePidController,
     task_vel: [f64; 6],   // [vx, vy, vz, ω_roll, ω_pitch, ω_yaw]
     joint_vel: [f64; J],
@@ -20,8 +21,8 @@ pub struct ArmSim<const F: usize, const J: usize> {
     dt: f64,
 }
 
-impl<const F: usize, const J: usize> ArmSim<F, J> {
-    pub fn new(mut arm: Arm<F, J>, controller: TaskSpacePidController, dt: f64) -> Self {
+impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
+    pub fn new(mut arm: Arm<F, J, S>, controller: TaskSpacePidController, dt: f64) -> Self {
         let mut q0 = [0.0f64; J];
         if J >= 2 {
             q0[1] = 45.0;
@@ -48,10 +49,6 @@ impl<const F: usize, const J: usize> ArmSim<F, J> {
             self.joint_vel[i] = theta_dot[i];
             self.joint_pos[i] += self.joint_vel[i] * self.dt;
         }
-
-        // Send updated positions & velocities to arm
-        self.arm.set_joint_positions(&self.joint_pos);
-        self.arm.set_joint_velocities(&self.joint_vel);
 
         Ok(())
     }
@@ -121,32 +118,32 @@ impl<const F: usize, const J: usize> ArmSim<F, J> {
         let frame_axis_len = 0.25;
         let world_pose = Pose::new(Vector3::new(0.0, 0.0, 0.0), Matrix3::identity());
 
-        ArmSim::<F, J>::draw_board(&mut window, -5.0, 35.0, 90.0, 60.0);
+        ArmSim::<F, J, S>::draw_board(&mut window, -5.0, 35.0, 90.0, 60.0);
 
         while window.render_with_camera(&mut camera) {
             if window.get_key(Key::Q) == Action::Press { break; }
             if window.get_key(Key::Space) == Action::Press { self.reset(); }
 
             // Linear velocities
-            if window.get_key(Key::Z) == Action::Press { self.task_vel[0] += 1.0; }
-            if window.get_key(Key::X) == Action::Press { self.task_vel[0] -= 1.0; }
-            if window.get_key(Key::C) == Action::Press { self.task_vel[1] += 1.0; }
-            if window.get_key(Key::V) == Action::Press { self.task_vel[1] -= 1.0; }
-            if window.get_key(Key::B) == Action::Press { self.task_vel[2] += 1.0; }
-            if window.get_key(Key::N) == Action::Press { self.task_vel[2] -= 1.0; }
+            if window.get_key(Key::Z) == Action::Press { self.task_vel[0] += 20.0; }
+            if window.get_key(Key::X) == Action::Press { self.task_vel[0] -= 20.0; }
+            if window.get_key(Key::C) == Action::Press { self.task_vel[1] += 20.0; }
+            if window.get_key(Key::V) == Action::Press { self.task_vel[1] -= 20.0; }
+            if window.get_key(Key::B) == Action::Press { self.task_vel[2] += 20.0; }
+            if window.get_key(Key::N) == Action::Press { self.task_vel[2] -= 20.0; }
 
             // Angular velocities
-            if window.get_key(Key::A) == Action::Press { self.task_vel[3] += 1.0; }
-            if window.get_key(Key::S) == Action::Press { self.task_vel[3] -= 1.0; }
-            if window.get_key(Key::D) == Action::Press { self.task_vel[4] += 1.0; }
-            if window.get_key(Key::F) == Action::Press { self.task_vel[4] -= 1.0; }
-            if window.get_key(Key::G) == Action::Press { self.task_vel[5] += 1.0; }
-            if window.get_key(Key::H) == Action::Press { self.task_vel[5] -= 1.0; }
+            if window.get_key(Key::A) == Action::Press { self.task_vel[3] += 5.0; }
+            if window.get_key(Key::S) == Action::Press { self.task_vel[3] -= 5.0; }
+            if window.get_key(Key::D) == Action::Press { self.task_vel[4] += 5.0; }
+            if window.get_key(Key::F) == Action::Press { self.task_vel[4] -= 5.0; }
+            if window.get_key(Key::G) == Action::Press { self.task_vel[5] += 5.0; }
+            if window.get_key(Key::H) == Action::Press { self.task_vel[5] -= 5.0; }
 
             let _ = self.step();
 
             let poses = self.arm.frame_poses();
-            ArmSim::<F, J>::draw_frame_axes(&mut window, &world_pose, world_axis_len);
+            ArmSim::<F, J, S>::draw_frame_axes(&mut window, &world_pose, world_axis_len);
 
             let mut prev_pos = Point3::new(
                 world_pose.position.x as f32,
@@ -162,7 +159,7 @@ impl<const F: usize, const J: usize> ArmSim<F, J> {
                 );
                 joint_nodes[i].set_local_translation(Translation3::from(current_pos));
                 window.draw_line(&prev_pos, &current_pos, &Point3::new(0.0, 0.0, 1.0));
-                ArmSim::<F, J>::draw_frame_axes(&mut window, &poses[i], frame_axis_len);
+                ArmSim::<F, J, S>::draw_frame_axes(&mut window, &poses[i], frame_axis_len);
                 prev_pos = current_pos;
             }
 

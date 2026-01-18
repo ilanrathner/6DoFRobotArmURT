@@ -1,6 +1,7 @@
 use crate::Arm;
 
 use nalgebra::{SVector, Vector3, Matrix3};
+use crate::inverse_kinematics_solvers::IkSolver;
 
 pub struct TaskSpacePidController {
     pub kp: SVector<f64, 6>,
@@ -69,72 +70,76 @@ impl TaskSpacePidController {
     }
 
     /// Main compute function
-    pub fn compute<const F: usize, const J: usize>(
+    pub fn compute<const F: usize, const J: usize, S: IkSolver<J>>(
         &mut self,
-        arm: &mut Arm<F, J>,
-        xd_des_arr: &[f64; 6],       // desired task-space velocity (world-frame)
+        arm: &mut Arm<F, J, S>,
+        xd_des_arr: &[f64; 6],       // Input: [vx, vy, vz] in World, [wx, wy, wz] in End-Effector
         motor_pos: &[f64; J],
         motor_vels: &[f64; J],
         dt: f64,
     ) -> [f64; J] {
-        // --- 1️⃣ Update arm state from motor readings
+        // --- 1️ Update arm state from motor readings
         arm.set_joint_positions(motor_pos);
         arm.set_joint_velocities(motor_vels);
 
-        // --- 2️⃣ Current end-effector pose
-        let ee_pose = arm.ee_pose(); // Pose { position, rotation }
+        // --- 2️ Current end-effector pose
+        let wrist_pose = arm.frame_pose(F - 1); // Pose { position, rotation }
+        let r_curr = wrist_pose.rotation; // Current 3x3 Rotation Matrix (R_world_ee)
 
-        // --- 3️⃣ Desired task-space velocity
-        let xd_des = SVector::<f64, 6>::from_row_slice(xd_des_arr);
-        let v_des = Vector3::new(xd_des[0], xd_des[1], xd_des[2]);
-        let w_des = Vector3::new(xd_des[3], xd_des[4], xd_des[5]);
+        // --- 3️ Parse desired task-space velocity directly from array
+        // Linear (World)
+        let v_des_world = Vector3::new(xd_des_arr[0], xd_des_arr[1], xd_des_arr[2]);
+        // Angular (End-Effector)
+        let w_des_ee = Vector3::new(xd_des_arr[3], xd_des_arr[4], xd_des_arr[5]);
 
-        // --- 4️⃣ Determine if joystick is active
+        // --- 4️ TRANSFORM: Map EE rotation to World Frame
+        let w_des_world = r_curr * w_des_ee;
+
+        // Construct the unified world-frame desired velocity for Feedforward
+        let mut xd_des_world = SVector::<f64, 6>::zeros();
+        xd_des_world.fixed_rows_mut::<3>(0).copy_from(&v_des_world);
+        xd_des_world.fixed_rows_mut::<3>(3).copy_from(&w_des_world);
+
+        // --- 5️ Determine if joystick is active
         let vel_eps = 1e-4;
-        let joystick_active = v_des.norm() > vel_eps || w_des.norm() > vel_eps;
+        let joystick_active = v_des_world.norm() > vel_eps || w_des_ee.norm() > vel_eps;
 
-        // --- 5️⃣ Update reference pose
+        // --- 5️ Update reference pose
         if joystick_active {
             // TRACKING MODE: integrate reference
             self.holding = false;
 
-            // Position integration
-            self.x_ref += v_des * dt;
+            // Position integration (World Frame)
+            self.x_ref += v_des_world * dt;
 
-            // Orientation integration (world-frame small-angle)
-            self.r_ref = self.integrate_orientation(&self.r_ref, &w_des, dt);
+            // Orientation integration (Now using the World-transformed w_des)
+            self.r_ref = self.integrate_orientation(&self.r_ref, &w_des_world, dt);
 
             // Cycle-based orthonormalization
             self.cycle_count += 1;
             if self.cycle_count % self.orthonorm_interval == 0 {
                 self.r_ref = self.svd_orthonormalize(&self.r_ref);
             }
-            println!(">>> JOYSTICK ACTIVE | v_des: {:.3}, w_des: {:.3}", v_des.norm(), w_des.norm());
+            println!(">>> JOYSTICK ACTIVE | v_world: {:.3}, w_ee: {:.3}", v_des_world.norm(), w_des_ee.norm());
 
         } else {
             // HOLD MODE: freeze reference
             if !self.holding {
                 // Capture reference ONCE at release
-                self.x_ref = ee_pose.position;
-                self.r_ref = ee_pose.rotation;
+                self.x_ref = wrist_pose.position;
+                self.r_ref = wrist_pose.rotation;
                 self.holding = true;
                 println!(">>> JOYSTICK RELEASED | HOLDING POSITION");
             }
-            // Reference frozen, PID will still correct gravity sag
         }
 
-        println!("--- CONTROLLER STATE ---");
-        println!("Mode: {}", if self.holding { "HOLDING" } else { "TRACKING" });
-        println!("EE Pos:  {:.4?}", ee_pose.position.as_slice());
-        println!("Ref Pos: {:.4?}", self.x_ref.as_slice());
+        // --- 6️ Compute position error
+        let e_pos = self.x_ref - wrist_pose.position;
 
-        // --- 6️⃣ Compute position error
-        let e_pos = self.x_ref - ee_pose.position;
-
-        // --- 7️⃣ Compute orientation error using cross-product method
-        let x_e = ee_pose.x_axis();
-        let y_e = ee_pose.y_axis();
-        let z_e = ee_pose.z_axis();
+        // --- 7️ Compute orientation error using cross-product method
+        let x_e = wrist_pose.x_axis();
+        let y_e = wrist_pose.y_axis();
+        let z_e = wrist_pose.z_axis();
 
         let x_r: Vector3<f64> = self.r_ref.column(0).into();
         let y_r: Vector3<f64> = self.r_ref.column(1).into();
@@ -142,28 +147,28 @@ impl TaskSpacePidController {
 
         let e_ori = 0.5 * (x_e.cross(&x_r) + y_e.cross(&y_r) + z_e.cross(&z_r));
 
-        // --- 8️⃣ Assemble full 6D task-space error
+        // --- 8️ Assemble full 6D task-space error
         let mut error = SVector::<f64, 6>::zeros();
-        println!("Pos Error: {:.4?} | Ori Error: {:.4?}", e_pos.as_slice(), e_ori.as_slice());
         error.fixed_rows_mut::<3>(0).copy_from(&e_pos);
         error.fixed_rows_mut::<3>(3).copy_from(&e_ori);
 
-        // --- 9️⃣ PID computation
+        // --- 9️ PID computation
         self.integral_error += error * dt;
         let d_error = (error - self.prev_error) / dt;
 
+        // Feedforward (xd_des_world) + PID correction
         let u_task =
-            xd_des
+            xd_des_world
             + self.kp.component_mul(&error)
             + self.ki.component_mul(&self.integral_error)
             + self.kd.component_mul(&d_error);
 
         self.prev_error = error;
 
-        // --- 🔟 Map to joint velocities
+        // --- 10 Map to joint velocities
         let qd_task = arm.inv_jacobian() * u_task;
 
-        // --- 11️⃣ Convert to array for motor output
+        // --- 11 Convert to array for motor output
         let mut qd_array = [0.0f64; J];
         qd_array.copy_from_slice(qd_task.as_slice());
         qd_array
