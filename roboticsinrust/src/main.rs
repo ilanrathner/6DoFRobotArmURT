@@ -1,5 +1,5 @@
 mod dh;
-mod arm;
+mod dh_arm_model;
 mod inverse_kinematics_solvers;
 mod arm_sim;
 mod joint;
@@ -9,7 +9,7 @@ mod task_space_pid_controller;
 use task_space_pid_controller::TaskSpacePidController;
 use joint::{Joint, JointType};
 use dh::{DHTable, DHRow};
-use arm::Arm;
+use dh_arm_model::DHArmModel;
 use arm_sim::ArmSim;
 
 
@@ -53,7 +53,7 @@ fn main() {
     ];
 
     // Create Arm with default damping
-    let arm = Arm::<NUM_FRAMES, NUM_JOINTS, UrtIkSolver>::new(
+    let arm = DHArmModel::<NUM_FRAMES, NUM_JOINTS, UrtIkSolver>::new(
         table,
         joints,
         None, // Use default damping

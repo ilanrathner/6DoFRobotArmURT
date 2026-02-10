@@ -1,4 +1,4 @@
-use crate::Arm;
+use crate::dh_arm_model::DHArmModel;
 
 use nalgebra::{SVector, Vector3, Matrix3};
 use crate::inverse_kinematics_solvers::IkSolver;
@@ -81,7 +81,7 @@ impl TaskSpacePidController {
     /// - Joint velocity commands to send to motors in degrees/s
     pub fn compute<const F: usize, const J: usize, S: IkSolver<J>>(
         &mut self,
-        arm: &mut Arm<F, J, S>,
+        arm: &mut DHArmModel<F, J, S>,
         xd_des_arr: &[f64; 6],       // Input: [vx, vy, vz] in World, [wx, wy, wz] in End-Effector
         motor_pos: &[f64; J],
         motor_vels: &[f64; J],

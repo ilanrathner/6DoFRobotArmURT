@@ -6,7 +6,7 @@ use kiss3d::nalgebra::{Translation3, Point2, Point3, Vector3, Matrix3, UnitQuate
 use kiss3d::event::{Key, Action};
 use std::time::Duration;
 use std::fmt::Write;
-use crate::Arm;
+use crate::dh_arm_model::DHArmModel;
 use crate::dh::Pose;
 use crate::task_space_pid_controller::TaskSpacePidController;
 use crate::inverse_kinematics_solvers::IkSolver;
@@ -14,7 +14,7 @@ use crate::inverse_kinematics_solvers::IkSolver;
 
 /// Simulation for task-space velocity control with continuous loop and non-blocking input.
 pub struct ArmSim<const F: usize, const J: usize, S: IkSolver<J>> {
-    arm: Arm<F, J, S>,
+    arm: DHArmModel<F, J, S>,
     controller: TaskSpacePidController,
     task_vel: [f64; 6],   // [vx, vy, vz, ω_roll, ω_pitch, ω_yaw]
     joint_vel: [f64; J],
@@ -23,7 +23,7 @@ pub struct ArmSim<const F: usize, const J: usize, S: IkSolver<J>> {
 }
 
 impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
-    pub fn new(mut arm: Arm<F, J, S>, controller: TaskSpacePidController, dt: f64) -> Self {
+    pub fn new(mut arm: DHArmModel<F, J, S>, controller: TaskSpacePidController, dt: f64) -> Self {
         
         arm.set_joint_positions(&[0.0f64; J]);
         arm.set_joint_velocities(&[0.0f64; J]);
@@ -88,7 +88,7 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
 
     fn draw_dh_arm(
         window: &mut Window,
-        arm: &Arm<F, J, S>,
+        arm: &DHArmModel<F, J, S>,
         joint_nodes: &mut [SceneNode],
         world_pose: &Pose,
         world_axis_len: f32,

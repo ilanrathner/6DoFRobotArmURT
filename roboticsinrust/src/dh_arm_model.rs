@@ -8,7 +8,7 @@ use crate::inverse_kinematics_solvers::IkSolver; // <-- IMPORT TRAIT
 use nalgebra::{SMatrix, SVector};
 
 
-pub struct Arm<const F: usize, const J: usize, S: IkSolver<J>> {
+pub struct DHArmModel<const F: usize, const J: usize, S: IkSolver<J>> {
     dh_table: DHTable<F, J>,           // The robot's DH table
     joints: [Joint ; J],        // The robot's joints
 
@@ -23,7 +23,7 @@ pub struct Arm<const F: usize, const J: usize, S: IkSolver<J>> {
     ik_link_parameters: Vec<f64>,
 }
 
-impl<const F: usize, const J: usize, S: IkSolver<J>> Arm<F, J, S> {
+impl<const F: usize, const J: usize, S: IkSolver<J>> DHArmModel<F, J, S> {
     /// Initialize arm with a DH table and optional damping
     pub fn new(
         dh_table: DHTable<F, J>,
