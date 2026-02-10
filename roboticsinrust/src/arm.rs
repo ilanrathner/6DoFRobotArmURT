@@ -1,7 +1,7 @@
 use std::usize;
 
 use crate::dh::{DHTable, Pose};
-use crate::joint::{Joint, JointType};
+use crate::joint::{Joint};
 
 use crate::inverse_kinematics_solvers::IkSolver; // <-- IMPORT TRAIT 
 
@@ -48,23 +48,20 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> Arm<F, J, S> {
         &self.dh_table
     }
 
-    /// Update joint positions from a slice of f32
+    /// Update joint positions
     pub fn set_joint_positions(&mut self, positions: &[f64; J]) {
         assert_eq!(positions.len(), self.joints.len(), "Position vector length mismatch");
         for (joint, &pos) in self.joints.iter_mut().zip(positions.iter()) {
-            match joint.joint_type {
-                JointType::Revolute => joint.set_position_deg(pos as f64),
-                JointType::Prismatic => joint.set_position(pos as f64),
-            }
+            joint.set_position(pos);
         }
         self.dirty = true;
     }
 
-    /// Update joint velocities from a slice of f32
+    /// Update joint velocities
     pub fn set_joint_velocities(&mut self, velocities: &[f64; J]) {
         assert_eq!(velocities.len(), self.joints.len(), "Velocity vector length mismatch");
         for (joint, &vel) in self.joints.iter_mut().zip(velocities.iter()) {
-            joint.set_velocity(vel as f64);
+            joint.set_velocity(vel);
         }
         self.dirty = true;
     }

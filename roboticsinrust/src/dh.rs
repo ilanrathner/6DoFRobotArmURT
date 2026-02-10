@@ -2,20 +2,6 @@ use crate::joint::{Joint, JointType};
 use nalgebra::{Matrix4, Matrix3,  Vector3, SMatrix};
 
 
-pub enum FrameType {
-    Fixed,
-    Joint,
-}
-
-impl FrameType {
-    pub fn is_joint(&self) -> bool {
-        matches!(self, FrameType::Joint)
-    }
-    pub fn is_fixed(&self) -> bool {
-        matches!(self, FrameType::Fixed)
-    }
-}
-
 // -----------------------------------------------------------------------------
 // DHRow: manages all functions and data for a single frame
 // -----------------------------------------------------------------------------
@@ -24,32 +10,21 @@ pub struct DHRow {
     alpha: f64,  
     d: f64,       
     theta: f64,  
-    frame_type: FrameType,
+    fixed_frame: bool, // True if this row is a fixed frame (no joint)
     joint_index: Option<usize>, // Index of the joint if this frame is a joint
 }
 
 impl DHRow {
-    pub fn new(a: f64, alpha: f64, d: f64, theta: f64, frame_type:FrameType, joint_index: Option<usize>) -> Self {
+    pub fn new(a: f64, alpha: f64, d: f64, theta: f64, fixed_frame: bool, joint_index: Option<usize>) -> Self {
         Self  {
             a,
             alpha: alpha.to_radians(),
             d,
             theta: theta.to_radians(),
-            frame_type,
+            fixed_frame,
             joint_index,
         }
     }
-
-
-    // Setters for DH parameters if initially fixed but need to be changed later
-    pub fn set_new_a(&mut self, new_a: f64) { self.a = new_a; }
-    pub fn set_new_alpha(&mut self, new_alpha: f64) { self.alpha = new_alpha.to_radians(); }
-    pub fn set_new_theta(&mut self, new_theta: f64) { self.theta = new_theta.to_radians(); }
-    pub fn set_new_d(&mut self, new_d: f64) { self.d = new_d; }
-
-    pub fn theta_deg(&self) -> f64 { self.theta.to_degrees() }
-    pub fn alpha_deg(&self) -> f64 { self.alpha.to_degrees() }
-
 
     fn dh_row_matrix(a: f64, alpha: f64, d: f64, theta: f64) -> Matrix4<f64> {
         let (st, ct) = theta.sin_cos();
@@ -65,25 +40,25 @@ impl DHRow {
     }
 
     pub fn get_row_trans_mat(&self, joints: &[Joint]) -> Matrix4<f64> {
-        let theta_total = match self.frame_type {
-            FrameType::Fixed => self.theta,
-            FrameType::Joint => {
-                let idx = self.joint_index.expect("Joint row missing joint_index");
-                match joints[idx].joint_type {
-                    JointType::Revolute => self.theta + joints[idx].position,
-                    JointType::Prismatic => self.theta,
-                }
+        
+        let theta_total = if self.fixed_frame {
+            self.theta
+        } else {
+            let idx = self.joint_index.expect("Joint row missing joint_index");
+            match joints[idx].joint_type {
+                JointType::Revolute => self.theta + joints[idx].position,
+                JointType::Prismatic => self.theta,
             }
         };
+        
 
-        let d_total = match self.frame_type {
-            FrameType::Fixed => self.d,
-            FrameType::Joint => {
-                let idx = self.joint_index.expect("Joint row missing joint_index");
-                match joints[self.joint_index.unwrap()].joint_type {
-                    JointType::Revolute => self.d,
-                    JointType::Prismatic => self.d + joints[idx].position,
-                }
+        let d_total = if self.fixed_frame {
+            self.d
+        } else {
+            let idx = self.joint_index.expect("Joint row missing joint_index");
+            match joints[idx].joint_type {
+                JointType::Revolute => self.d,
+                JointType::Prismatic => self.d + joints[idx].position,
             }
         };
 
@@ -91,27 +66,20 @@ impl DHRow {
     }
 
     /// Print DH row info, showing joint type and current joint value if applicable
-    pub fn print_row(&self, row_index: usize,  joints: &[Joint]) {
-        let (ftype_str, joint_val) = match self.frame_type {
-            FrameType::Fixed => ("Fixed".to_string(), None),
-            FrameType::Joint => {
-                let idx = self.joint_index.expect("Joint row missing joint_index");
-                let joint = &joints[idx];
-                let val = joint.position;
-                (format!("{:?}", joint.joint_type), Some(val))
-            }
+    pub fn print_row(&self, row_index: usize, joints: &[Joint]) {
+        if self.fixed_frame {
+            println!("Frame {}: Fixed Frame | a={:.2}, alpha={:.2}, d={:.2}, theta={:.2}",
+                row_index, self.a, self.alpha.to_degrees(), self.d, self.theta.to_degrees());
+        } else {
+            let idx = self.joint_index.expect("Joint row missing joint_index");
+            let joint = &joints[idx];
+            let joint_info = match joint.joint_type {
+                JointType::Revolute => format!("Revolute Joint {} | angle={:.2} deg", idx + 1, joint.position.to_degrees()),
+                JointType::Prismatic => format!("Prismatic Joint {} | extension={:.2} units", idx + 1, joint.position),
+            };
+            println!("Frame {}: {} | a={:.2}, alpha={:.2}, d={:.2}, theta={:.2}",
+                row_index, joint_info, self.a, self.alpha.to_degrees(), self.d, self.theta.to_degrees());
         };
-
-        match joint_val {
-            Some(val) => println!(
-                "Row {:2} | {:9} | a={:.4}, alpha={:.4}, d={:.4}, theta={:.4}, joint_value={:.4}",
-                row_index, ftype_str, self.a, self.alpha, self.d, self.theta, val
-            ),
-            None => println!(
-                "Row {:2} | {:9} | a={:.4}, alpha={:.4}, d={:.4}, theta={:.4}",
-                row_index, ftype_str, self.a, self.alpha, self.d, self.theta
-            ),
-        }
     }
 }
 
@@ -149,6 +117,16 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
         transformation_matrix
     }
 
+        /// Get pose between frame j and frame i (exclusive i index convention)
+    pub fn pose_between_j_i(&self, j: usize, i: usize, joints: &[Joint; J]) -> Pose {
+        assert!(j < i && i <= F);
+        let mut transform = Matrix4::<f64>::identity();
+        for k in j..i {
+            transform *= self.rows[k].get_row_trans_mat(joints);
+        }
+        Pose::from_homogeneous(&transform)
+    }
+
      /// Compute poses for each frame relative to base frame (0).
     pub fn all_poses(&self, joints: &[Joint; J]) -> [Pose; F] {
         let mut poses: [Pose; F] = std::array::from_fn(|_|  Pose::identity());
@@ -170,15 +148,6 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
         }
         Pose::from_homogeneous(&transform)
     }
-    /// Get pose between frame j and frame i (exclusive i index convention)
-    pub fn pose_between_j_i(&self, j: usize, i: usize, joints: &[Joint; J]) -> Pose {
-        assert!(j < i && i <= F);
-        let mut transform = Matrix4::<f64>::identity();
-        for k in j..i {
-            transform *= self.rows[k].get_row_trans_mat(joints);
-        }
-        Pose::from_homogeneous(&transform)
-    }
 
     //Jacobian matrix. Always has 6 rows for linear and angular portion
     pub fn compute_jacobian(&self, joints: &[Joint; J]) -> SMatrix<f64, 6, J> {
@@ -188,7 +157,7 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
         let mut j = SMatrix::<f64,6, J>::zeros(); 
 
         for (i, row) in self.rows.iter().enumerate() {
-            if row.frame_type.is_fixed() { continue; }
+            if row.fixed_frame { continue; }
             let joint_index = row.joint_index.expect("Joint row missing joint_index");
 
             let pose_i = &poses[i];
@@ -282,7 +251,7 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
     pub fn print_table(&self, joints: &[Joint; J]) {
         println!("================ DH TABLE ================");
         for (i, row) in self.rows.iter().enumerate() {
-            row.print_row(i, joints);
+            row.print_row(i,joints);
         }
         println!("==========================================");
     }

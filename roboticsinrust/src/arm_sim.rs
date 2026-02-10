@@ -11,6 +11,7 @@ use crate::dh::Pose;
 use crate::task_space_pid_controller::TaskSpacePidController;
 use crate::inverse_kinematics_solvers::IkSolver;
 
+
 /// Simulation for task-space velocity control with continuous loop and non-blocking input.
 pub struct ArmSim<const F: usize, const J: usize, S: IkSolver<J>> {
     arm: Arm<F, J, S>,
@@ -23,11 +24,8 @@ pub struct ArmSim<const F: usize, const J: usize, S: IkSolver<J>> {
 
 impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
     pub fn new(mut arm: Arm<F, J, S>, controller: TaskSpacePidController, dt: f64) -> Self {
-        let mut q0 = [0.0f64; J];
-        if J >= 2 {
-            q0[1] = 45.0;
-        }
-        arm.set_joint_positions(&q0);
+        
+        arm.set_joint_positions(&[0.0f64; J]);
         arm.set_joint_velocities(&[0.0f64; J]);
 
         Self {
@@ -35,7 +33,7 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
             controller,
             task_vel: [0.0; 6],
             joint_vel: [0.0; J],
-            joint_pos: q0,
+            joint_pos: [0.0; J],
             dt,
         }
     }
@@ -74,9 +72,9 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
         let y_dir: Vector3<f32> = rot_mat.column(1).into_owned();
         let z_dir: Vector3<f32> = rot_mat.column(2).into_owned();
 
-        window.draw_line(&pos, &(pos + x_dir * length), &Point3::new(1.0, 0.0, 0.0));
-        window.draw_line(&pos, &(pos + y_dir * length), &Point3::new(0.0, 1.0, 0.0));
-        window.draw_line(&pos, &(pos + z_dir * length), &Point3::new(0.0, 0.0, 1.0));
+        window.draw_line(&pos, &(pos + x_dir * length), &Point3::new(1.0, 0.0, 0.0)); //red
+        window.draw_line(&pos, &(pos + y_dir * length), &Point3::new(0.0, 1.0, 0.0)); //green
+        window.draw_line(&pos, &(pos + z_dir * length), &Point3::new(0.0, 0.0, 1.0)); //blue
     }
 
     fn draw_board(window: &mut Window, height: f64, x_offset: f64, width: f64, depth: f64) {
@@ -87,6 +85,70 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
         target_quad.set_local_rotation(rotation_quaternion);
         target_quad.set_local_translation(Translation3::from(center_pos.coords));
     }
+
+    fn draw_dh_arm(
+        window: &mut Window,
+        arm: &Arm<F, J, S>,
+        joint_nodes: &mut [SceneNode],
+        world_pose: &Pose,
+        world_axis_len: f32,
+        frame_axis_len: f32,
+    ) {
+        let poses = arm.frame_poses();
+
+        // Draw world frame
+        Self::draw_frame_axes(window, world_pose, world_axis_len);
+
+        let mut prev_pos = Point3::new(
+            world_pose.position.x as f32,
+            world_pose.position.y as f32,
+            world_pose.position.z as f32,
+        );
+
+        for (i, pose) in poses.iter().enumerate() {
+            let current_pos = Point3::new(
+                pose.position.x as f32,
+                pose.position.y as f32,
+                pose.position.z as f32,
+            );
+
+            // Update joint marker
+            joint_nodes[i].set_local_translation(Translation3::from(current_pos));
+
+            // Draw link
+            window.draw_line(&prev_pos, &current_pos, &Point3::new(0.0, 0.0, 1.0));
+
+            // Draw frame axes
+            Self::draw_frame_axes(window, pose, frame_axis_len);
+
+            prev_pos = current_pos;
+        }
+    }
+
+    
+
+    fn get_keyboard_input(&mut self, window: &Window) {
+        // Placeholder for future keyboard input handling if needed
+        if window.get_key(Key::Space) == Action::Press { self.reset(); }
+
+        // Linear velocities
+        if window.get_key(Key::Z) == Action::Press { self.task_vel[0] += 20.0; }
+        if window.get_key(Key::X) == Action::Press { self.task_vel[0] -= 20.0; }
+        if window.get_key(Key::C) == Action::Press { self.task_vel[1] += 20.0; }
+        if window.get_key(Key::V) == Action::Press { self.task_vel[1] -= 20.0; }
+        if window.get_key(Key::B) == Action::Press { self.task_vel[2] += 20.0; }
+        if window.get_key(Key::N) == Action::Press { self.task_vel[2] -= 20.0; }
+
+        // Angular velocities
+        if window.get_key(Key::A) == Action::Press { self.task_vel[3] += 5.0; }
+        if window.get_key(Key::S) == Action::Press { self.task_vel[3] -= 5.0; }
+        if window.get_key(Key::D) == Action::Press { self.task_vel[4] += 5.0; }
+        if window.get_key(Key::F) == Action::Press { self.task_vel[4] -= 5.0; }
+        if window.get_key(Key::G) == Action::Press { self.task_vel[5] += 5.0; }
+        if window.get_key(Key::H) == Action::Press { self.task_vel[5] -= 5.0; }
+    }
+
+
 
     pub fn run(&mut self) {
         println!("=== Continuous Arm Simulation (Kiss3d) ===");
@@ -118,50 +180,23 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
         let frame_axis_len = 0.25;
         let world_pose = Pose::new(Vector3::new(0.0, 0.0, 0.0), Matrix3::identity());
 
-        ArmSim::<F, J, S>::draw_board(&mut window, -5.0, 35.0, 90.0, 60.0);
+        Self::draw_board(&mut window, -5.0, 35.0, 90.0, 60.0);
 
         while window.render_with_camera(&mut camera) {
             if window.get_key(Key::Q) == Action::Press { break; }
-            if window.get_key(Key::Space) == Action::Press { self.reset(); }
 
-            // Linear velocities
-            if window.get_key(Key::Z) == Action::Press { self.task_vel[0] += 20.0; }
-            if window.get_key(Key::X) == Action::Press { self.task_vel[0] -= 20.0; }
-            if window.get_key(Key::C) == Action::Press { self.task_vel[1] += 20.0; }
-            if window.get_key(Key::V) == Action::Press { self.task_vel[1] -= 20.0; }
-            if window.get_key(Key::B) == Action::Press { self.task_vel[2] += 20.0; }
-            if window.get_key(Key::N) == Action::Press { self.task_vel[2] -= 20.0; }
-
-            // Angular velocities
-            if window.get_key(Key::A) == Action::Press { self.task_vel[3] += 5.0; }
-            if window.get_key(Key::S) == Action::Press { self.task_vel[3] -= 5.0; }
-            if window.get_key(Key::D) == Action::Press { self.task_vel[4] += 5.0; }
-            if window.get_key(Key::F) == Action::Press { self.task_vel[4] -= 5.0; }
-            if window.get_key(Key::G) == Action::Press { self.task_vel[5] += 5.0; }
-            if window.get_key(Key::H) == Action::Press { self.task_vel[5] -= 5.0; }
+            self.get_keyboard_input(&window);
 
             let _ = self.step();
 
-            let poses = self.arm.frame_poses();
-            ArmSim::<F, J, S>::draw_frame_axes(&mut window, &world_pose, world_axis_len);
-
-            let mut prev_pos = Point3::new(
-                world_pose.position.x as f32,
-                world_pose.position.y as f32,
-                world_pose.position.z as f32,
+            Self::draw_dh_arm(
+                &mut window,
+                &self.arm,
+                &mut joint_nodes,
+                &world_pose,
+                world_axis_len,
+                frame_axis_len,
             );
-
-            for i in 0..poses.len() {
-                let current_pos = Point3::new(
-                    poses[i].position.x as f32,
-                    poses[i].position.y as f32,
-                    poses[i].position.z as f32,
-                );
-                joint_nodes[i].set_local_translation(Translation3::from(current_pos));
-                window.draw_line(&prev_pos, &current_pos, &Point3::new(0.0, 0.0, 1.0));
-                ArmSim::<F, J, S>::draw_frame_axes(&mut window, &poses[i], frame_axis_len);
-                prev_pos = current_pos;
-            }
 
             let mut vel_text = String::new();
             write!(&mut vel_text,

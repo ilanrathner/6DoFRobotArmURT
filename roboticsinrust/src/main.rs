@@ -5,11 +5,13 @@ mod arm_sim;
 mod joint;
 mod task_space_pid_controller;
 
+
 use task_space_pid_controller::TaskSpacePidController;
 use joint::{Joint, JointType};
-use dh::{DHTable, DHRow, FrameType};
+use dh::{DHTable, DHRow};
 use arm::Arm;
 use arm_sim::ArmSim;
+
 
 use nalgebra::SVector;
 
@@ -22,24 +24,24 @@ fn main() {
     // URT robot 6 DOF arm
     let table = DHTable::<NUM_FRAMES, NUM_JOINTS>::new([
         // Insert DH rows with joint_index
-        DHRow::new(0.0, 0.0, 9.0, 0.0, FrameType::Joint, Some(0)),   // joint 1
-        DHRow::new(0.0, -90.0, 0.0, -90.0, FrameType::Joint, Some(1)), // joint 2
-        DHRow::new(34.0, 0.0, 0.0, 90.0, FrameType::Joint, Some(2)),  // joint 3
-        DHRow::new(0.0, 90.0, 32.0, 0.0, FrameType::Joint, Some(3)),  // joint 4
-        DHRow::new(0.0, -90.0, 0.0, 0.0, FrameType::Joint, Some(4)),  // joint 5
-        DHRow::new(0.0, 90.0, 15.0, 0.0, FrameType::Joint, Some(5)),  // joint 6
+        DHRow::new(0.0, 0.0, 9.0, 0.0, false, Some(0)),   // joint 1
+        DHRow::new(0.0, -90.0, 0.0, -90.0, false, Some(1)), // joint 2
+        DHRow::new(34.0, 0.0, 0.0, 90.0, false, Some(2)),  // joint 3
+        DHRow::new(0.0, 90.0, 32.0, 0.0, false, Some(3)),  // joint 4
+        DHRow::new(0.0, -90.0, 0.0, 0.0, false, Some(4)),  // joint 5
+        DHRow::new(0.0, 90.0, 15.0, 0.0, false, Some(5)),  // joint 6
         // Add end-effector fixed frame (no joint)
-        DHRow::new(0.0, 0.0, 15.0, 0.0, FrameType::Fixed, None)
+        DHRow::new(0.0, 0.0, 15.0, 0.0, true, None)
     ]);
 
     // Create joints
     let joints = [
-        Joint::new(JointType::Revolute), // joint 1
-        Joint::new(JointType::Revolute), // joint 2
-        Joint::new(JointType::Revolute), // joint 3
-        Joint::new(JointType::Revolute), // joint 4
-        Joint::new(JointType::Revolute), // joint 5
-        Joint::new(JointType::Revolute), // joint 6
+        Joint::new(JointType::Revolute, None, None), // joint 1
+        Joint::new(JointType::Revolute, None, None), // joint 2
+        Joint::new(JointType::Revolute, None, None), // joint 3
+        Joint::new(JointType::Revolute, None, None), // joint 4
+        Joint::new(JointType::Revolute, None, None), // joint 5
+        Joint::new(JointType::Revolute, None, None), // joint 6
     ];
 
     let urt_ik_link_parameters = vec![

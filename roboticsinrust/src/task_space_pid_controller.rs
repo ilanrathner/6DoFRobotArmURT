@@ -70,6 +70,15 @@ impl TaskSpacePidController {
     }
 
     /// Main compute function
+    /// Inputs:
+    /// - xd_des_arr: Desired task-space velocity in cm/s (or m/s whichever is used for dh table. don't need to convert here) 
+    /// [vx, vy, vz] in World frame, 
+    /// [wx, wy, wz] in End-Effector frame (angular velocity in degrees/s, will be converted to rad/s)
+    /// - motor_pos: Current joint positions from encoders  
+    /// - motor_vels: Current joint velocities from encoders
+    /// - dt: Time step for integration
+    /// Output:
+    /// - Joint velocity commands to send to motors in degrees/s
     pub fn compute<const F: usize, const J: usize, S: IkSolver<J>>(
         &mut self,
         arm: &mut Arm<F, J, S>,
@@ -89,8 +98,10 @@ impl TaskSpacePidController {
         // --- 3️ Parse desired task-space velocity directly from array
         // Linear (World)
         let v_des_world = Vector3::new(xd_des_arr[0], xd_des_arr[1], xd_des_arr[2]);
-        // Angular (End-Effector)
-        let w_des_ee = Vector3::new(xd_des_arr[3], xd_des_arr[4], xd_des_arr[5]);
+        // Angular (End-Effector) in rad/s, will transform to World next
+        let w_des_ee = Vector3::new(xd_des_arr[3].to_radians(),
+                                                                         xd_des_arr[4].to_radians(),
+                                                                         xd_des_arr[5].to_radians());
 
         // --- 4️ TRANSFORM: Map EE rotation to World Frame
         let w_des_world = r_curr * w_des_ee;
@@ -120,7 +131,7 @@ impl TaskSpacePidController {
             if self.cycle_count % self.orthonorm_interval == 0 {
                 self.r_ref = self.svd_orthonormalize(&self.r_ref);
             }
-            println!(">>> JOYSTICK ACTIVE | v_world: {:.3}, w_ee: {:.3}", v_des_world.norm(), w_des_ee.norm());
+            //println!(">>> JOYSTICK ACTIVE | v_world: {:.3}, w_ee: {:.3}", v_des_world.norm(), w_des_ee.norm());
 
         } else {
             // HOLD MODE: freeze reference
@@ -168,9 +179,13 @@ impl TaskSpacePidController {
         // --- 10 Map to joint velocities
         let qd_task = arm.inv_jacobian() * u_task;
 
-        // --- 11 Convert to array for motor output
+        // --- 11 Convert to array for motor output (with Rad to Deg conversion)
         let mut qd_array = [0.0f64; J];
-        qd_array.copy_from_slice(qd_task.as_slice());
+
+        for (i, &rad_val) in qd_task.as_slice().iter().enumerate() {
+            qd_array[i] = rad_val.to_degrees();
+        }
+
         qd_array
     }
 }

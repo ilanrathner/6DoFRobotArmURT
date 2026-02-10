@@ -29,72 +29,59 @@ pub struct Joint {
 
 impl Joint {
     /// Create a joint with no limits.
-    pub fn new(joint_type: JointType) -> Self {
-        Self {
-            joint_type,
-            position: 0.0,
-            velocity: 0.0,
-            limit_min: None,
-            limit_max: None,
-        }
-    }
+    pub fn new(joint_type: JointType, limit_min: Option<f64>, limit_max: Option<f64>) -> Self {
+        let convert = |val: f64| {
+            if matches!(joint_type, JointType::Revolute) {
+                val.to_radians()
+            } else {
+                val // Prismatic stays in meters
+            }
+        };
 
-    /// Create a joint with limits (in *internal* units).
-    pub fn new_with_limits(joint_type: JointType, min: f64, max: f64) -> Self {
         Self {
             joint_type,
             position: 0.0,
             velocity: 0.0,
-            limit_min: Some(min),
-            limit_max: Some(max),
+            limit_min: limit_min.map(convert),
+            limit_max: limit_max.map(convert),
         }
     }
 
     // -------------------------------
     // Position Setters (Safe)
     // -------------------------------
-
+    /// Set joint position with limit checking. For revolute joints, assume input is in degrees for user and convert to radians.
     pub fn set_position(&mut self, pos: f64) {
-        let mut p = pos;
+        match self.joint_type {
+            JointType::Revolute => {
+                self.position = pos.to_radians(); // Will apply limits below
+            }
+            JointType::Prismatic => {
+                self.position = pos; // Will apply limits below
+            }
+        }
+
 
         if let Some(min) = self.limit_min {
-            if p < min {
-                p = min;
+            if self.position < min {
+                self.position = min;
             }
         }
         if let Some(max) = self.limit_max {
-            if p > max {
-                p = max;
+            if self.position > max {
+                self.position = max;
             }
         }
 
-        self.position = p;
     }
-
+    /// Set joint velocity. For revolute joints, assume input is in degrees/s for user and convert to radians/s.
     pub fn set_velocity(&mut self, vel: f64) {
-        self.velocity = vel;
-    }
-
-    // -------------------------------
-    // User-Friendly DEGREE API
-    // -------------------------------
-
-    pub fn set_position_deg(&mut self, deg: f64) {
         match self.joint_type {
             JointType::Revolute => {
-                self.set_position(deg.to_radians());
+                self.velocity = vel.to_radians(); // Assume input is in rad/s for revolute joints
             }
             JointType::Prismatic => {
-                panic!("set_position_deg called on prismatic joint");
-            }
-        }
-    }
-
-    pub fn position_deg(&self) -> f64 {
-        match self.joint_type {
-            JointType::Revolute => self.position.to_degrees(),
-            JointType::Prismatic => {
-                panic!("position_deg called on prismatic joint");
+                self.velocity = vel; // Assume input is in m/s for prismatic joints
             }
         }
     }
@@ -107,8 +94,8 @@ impl Joint {
         match self.joint_type {
             JointType::Revolute => {
                 println!("Joint Type: Revolute");
-                println!("  Position: {:.3} rad  ({:.2}°)", self.position, self.position_deg());
-                println!("  Velocity: {:.3} rad/s", self.velocity);
+                println!("  Position: {:.3} rad  ({:.2}°)", self.position, self.position.to_degrees());
+                println!("  Velocity: {:.3} rad/s ({:.2}°/s)", self.velocity, self.velocity.to_degrees());
 
                 match (self.limit_min, self.limit_max) {
                     (Some(min), Some(max)) => {
