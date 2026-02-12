@@ -132,20 +132,20 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
         if window.get_key(Key::Space) == Action::Press { self.reset(); }
 
         // Linear velocities
-        if window.get_key(Key::Z) == Action::Press { self.task_vel[0] += 20.0; }
-        if window.get_key(Key::X) == Action::Press { self.task_vel[0] -= 20.0; }
-        if window.get_key(Key::C) == Action::Press { self.task_vel[1] += 20.0; }
-        if window.get_key(Key::V) == Action::Press { self.task_vel[1] -= 20.0; }
-        if window.get_key(Key::B) == Action::Press { self.task_vel[2] += 20.0; }
-        if window.get_key(Key::N) == Action::Press { self.task_vel[2] -= 20.0; }
+        if window.get_key(Key::Z) == Action::Press { self.task_vel[0] += 1.0; }
+        if window.get_key(Key::X) == Action::Press { self.task_vel[0] -= 1.0; }
+        if window.get_key(Key::C) == Action::Press { self.task_vel[1] += 1.0; }
+        if window.get_key(Key::V) == Action::Press { self.task_vel[1] -= 1.0; }
+        if window.get_key(Key::B) == Action::Press { self.task_vel[2] += 1.0; }
+        if window.get_key(Key::N) == Action::Press { self.task_vel[2] -= 1.0; }
 
         // Angular velocities
-        if window.get_key(Key::A) == Action::Press { self.task_vel[3] += 5.0; }
-        if window.get_key(Key::S) == Action::Press { self.task_vel[3] -= 5.0; }
-        if window.get_key(Key::D) == Action::Press { self.task_vel[4] += 5.0; }
-        if window.get_key(Key::F) == Action::Press { self.task_vel[4] -= 5.0; }
-        if window.get_key(Key::G) == Action::Press { self.task_vel[5] += 5.0; }
-        if window.get_key(Key::H) == Action::Press { self.task_vel[5] -= 5.0; }
+        if window.get_key(Key::A) == Action::Press { self.task_vel[3] += 3.0; }
+        if window.get_key(Key::S) == Action::Press { self.task_vel[3] -= 3.0; }
+        if window.get_key(Key::D) == Action::Press { self.task_vel[4] += 3.0; }
+        if window.get_key(Key::F) == Action::Press { self.task_vel[4] -= 3.0; }
+        if window.get_key(Key::G) == Action::Press { self.task_vel[5] += 3.0; }
+        if window.get_key(Key::H) == Action::Press { self.task_vel[5] -= 3.0; }
     }
 
 
@@ -188,6 +188,7 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
             self.get_keyboard_input(&window);
 
             let _ = self.step();
+            println!("joint_vel: {:?}, joint_pos: {:?}", &self.joint_vel, &self.joint_pos);
 
             Self::draw_dh_arm(
                 &mut window,
