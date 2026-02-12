@@ -2,19 +2,26 @@ use crate::joint::{Joint, JointType};
 use nalgebra::{Matrix4, Matrix3,  Vector3, SMatrix};
 
 
-// -----------------------------------------------------------------------------
-// DHRow: manages all functions and data for a single frame
-// -----------------------------------------------------------------------------
+/// Represents a single row in a Denavit-Hartenberg (DH) parameter table.
+/// 
+/// This struct manages the transformation data for a single frame, which can
+/// either be a physical joint or a fixed frame offset.
 pub struct DHRow {
     a: f64,      
     alpha: f64,  
     d: f64,       
     theta: f64,  
-    fixed_frame: bool, // True if this row is a fixed frame (no joint)
-    joint_index: Option<usize>, // Index of the joint if this frame is a joint
+    /// If true, this frame represents a static offset rather than a moving joint
+    fixed_frame: bool, 
+    /// The index mapping this row to a specific joint in the joint state array
+    joint_index: Option<usize>,
 }
 
 impl DHRow {
+    /// Creates a new DH row. 
+    /// 
+    /// Note: `alpha` and `theta` should be provided in **degrees**; 
+    /// they are converted to radians internally.
     pub fn new(a: f64, alpha: f64, d: f64, theta: f64, fixed_frame: bool, joint_index: Option<usize>) -> Self {
         Self  {
             a,
@@ -26,6 +33,9 @@ impl DHRow {
         }
     }
 
+    /// Internal helper to generate a standard DH transformation matrix.
+    /// 
+    /// Uses the convention: T = T(x)*R(alpha)*T(z)*R(theta).
     fn dh_row_matrix(a: f64, alpha: f64, d: f64, theta: f64) -> Matrix4<f64> {
         let (st, ct) = theta.sin_cos();
         let (sa, ca) = alpha.sin_cos();
@@ -39,6 +49,7 @@ impl DHRow {
         )
     }
 
+    /// Computes the 4x4 transformation matrix for this row given the current joint states.
     pub fn get_row_trans_mat(&self, joints: &[Joint]) -> Matrix4<f64> {
         
         let theta_total = if self.fixed_frame {
@@ -83,9 +94,11 @@ impl DHRow {
     }
 }
 
-// -----------------------------------------------------------------------------
-// DHTable: manages all frames and joints
-// -----------------------------------------------------------------------------
+/// A Denavit-Hartenberg Table representing a full robotic kinematic chain.
+/// 
+/// # Type Parameters
+/// * `F`: The number of Frames in the table.
+/// * `J`: The number of movable Joints.
 pub struct DHTable<const F: usize, const J: usize> {
     rows: [DHRow; F],
 }
@@ -149,7 +162,9 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
         Pose::from_homogeneous(&transform)
     }
 
-    //Jacobian matrix. Always has 6 rows for linear and angular portion
+    /// Computes the geometric Jacobian matrix ($6 \times J$) for the current configuration.
+    /// 
+    /// The top 3 rows represent linear velocity mapping; the bottom 3 represent angular.
     pub fn compute_jacobian(&self, joints: &[Joint; J]) -> SMatrix<f64, 6, J> {
         let poses = self.all_poses(joints);
         let p_end = poses[F - 1].position;
@@ -179,9 +194,14 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
         j
     }
 
-    /// Computes the damped Moore-Penrose pseudo-inverse.
-    /// Works for any number of joints J by automatically switching between
-    /// the Right and Left pseudo-inverse based on the system's DOF.
+    /// Computes the damped Moore-Penrose pseudo-inverse of the Jacobian.
+    /// 
+    /// This is used to map task-space velocities back to joint velocities.
+    /// It handles singularity avoidance via the `lambda` damping parameter.
+    ///
+    /// # Logic
+    /// * If **J >= 6** (Redundant): Uses Right Pseudo-Inverse to minimize joint velocities.
+    /// * If **J < 6** (Under-actuated): Uses Left Pseudo-Inverse to minimize task error.
     pub fn damped_moore_penrose_pseudo_inverse(
         &self,
         joints: &[Joint; J],
@@ -259,9 +279,8 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
 }
 
 
-// -----------------------------------------------------------------------------
-// Pose struct turns a homogeneous matrix into position + rotation and functions for reverse as well
-// -----------------------------------------------------------------------------
+/// Represents the pose of a frame using a vector for position and a rotation matrix for orientation.
+/// Converts between homogeneous transformation matrices and this structured format for easier manipulation in task-space control.
 #[derive(Debug)]
 pub struct Pose {
     pub position: Vector3<f64>,

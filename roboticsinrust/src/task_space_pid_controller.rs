@@ -140,7 +140,7 @@ impl TaskSpacePidController {
                 self.x_ref = wrist_pose.position;
                 self.r_ref = wrist_pose.rotation;
                 self.holding = true;
-                println!(">>> JOYSTICK RELEASED | HOLDING POSITION");
+                //println!(">>> JOYSTICK RELEASED | HOLDING POSITION");
             }
         }
 

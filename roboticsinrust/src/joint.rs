@@ -1,12 +1,14 @@
-/// Type of joint in a kinematic chain.
-#[derive(Debug, Clone, Copy)]
+/// The mechanical classification of a joint
 pub enum JointType {
     Revolute,   // angle, radians
     Prismatic,  // position, meters (or consistent linear unit)
 }
 
-/// Represents a joint with state and optional limits.
-#[derive(Debug, Clone)]
+/// Represents a single joint's state, physical constraints, and unit conversions.
+///
+/// This struct acts as a safety wrapper, ensuring that commanded positions 
+/// stay within physical hardware limits and that user-facing units (like degrees) 
+/// are correctly internalized as standard SI units (radians/meters).
 pub struct Joint {
     pub joint_type: JointType,
 
@@ -28,28 +30,20 @@ pub struct Joint {
 }
 
 impl Joint {
-    /// Create a joint with no limits.
+    /// Create a joint with optional limits.
     pub fn new(joint_type: JointType, limit_min: Option<f64>, limit_max: Option<f64>) -> Self {
-        let convert = |val: f64| {
-            if matches!(joint_type, JointType::Revolute) {
-                val.to_radians()
-            } else {
-                val // Prismatic stays in meters
-            }
-        };
+        let is_revolute = matches!(joint_type, JointType::Revolute);
 
         Self {
             joint_type,
             position: 0.0,
             velocity: 0.0,
-            limit_min: limit_min.map(convert),
-            limit_max: limit_max.map(convert),
+            limit_min: limit_min.map(|val| if is_revolute { val.to_radians() } else { val }),
+            limit_max: limit_max.map(|val| if is_revolute { val.to_radians() } else { val }),
         }
     }
 
-    // -------------------------------
-    // Position Setters (Safe)
-    // -------------------------------
+
     /// Set joint position with limit checking. For revolute joints, assume input is in degrees for user and convert to radians.
     pub fn set_position(&mut self, pos: f64) {
         match self.joint_type {

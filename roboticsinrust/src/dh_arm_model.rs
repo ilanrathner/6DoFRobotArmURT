@@ -7,16 +7,31 @@ use crate::inverse_kinematics_solvers::IkSolver; // <-- IMPORT TRAIT
 
 use nalgebra::{SMatrix, SVector};
 
-
+/// High-level controller for a robotic arm defined by Denavit-Hartenberg parameters.
+/// 
+/// This struct acts as the central "brain," coordinating the kinematic table, 
+/// joint states, and the IK solver. It uses a lazy-update pattern to cache 
+/// expensive computations like the Jacobian and its pseudo-inverse.
+///
+/// # Type Parameters
+/// * `F`: Number of coordinate frames in the kinematic chain.
+/// * `J`: Number of movable Joints.
+/// * `S`: The Inverse Kinematics solver implementation.
 pub struct DHArmModel<const F: usize, const J: usize, S: IkSolver<J>> {
-    dh_table: DHTable<F, J>,           // The robot's DH table
-    joints: [Joint ; J],        // The robot's joints
+    /// Internal DH representation for Forward Kinematics and Jacobian math.
+    dh_table: DHTable<F, J>,          
+    /// State of each physical joint (position, velocity, limits).
+    joints: [Joint ; J],        
+    /// Cached geometric Jacobian
+    jacobian: Option<SMatrix<f64, 6, J>>,  
+    /// Cached damped Moore-Penrose pseudo-inverse of the Jacobian
+    inv_jacobian: Option<SMatrix<f64, J, 6>>, 
 
-    jacobian: Option<SMatrix<f64, 6, J>>,  // Cached Jacobian
-    inv_jacobian: Option<SMatrix<f64, J, 6>>, // Cached damped pseudo-inverse
-
-    dirty: bool,                 // True if DH table changed since last FK / Jacobian
-    damping: f64,                // Default damping for pseudo-inverse
+    /// State flag indicating if joint positions have changed since the last update.
+    /// When true, kinematics must be recomputed.
+    dirty: bool,                 
+    /// Damping factor ($\lambda$) used in pseudo-inverse to handle singularities.
+    damping: f64,                
 
     ik_solver: S, // Inverse Kinematics solver
     /// Generic list of link parameters needed by the specific IkSolver.
@@ -24,7 +39,9 @@ pub struct DHArmModel<const F: usize, const J: usize, S: IkSolver<J>> {
 }
 
 impl<const F: usize, const J: usize, S: IkSolver<J>> DHArmModel<F, J, S> {
-    /// Initialize arm with a DH table and optional damping
+    /// Creates a new arm model instance.
+    /// 
+    /// If `damping` is not provided, it defaults to a stable value of $1e-4$.
     pub fn new(
         dh_table: DHTable<F, J>,
         joints: [Joint; J],
@@ -48,7 +65,10 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> DHArmModel<F, J, S> {
         &self.dh_table
     }
 
-    /// Update joint positions
+    /// Updates the position of all joints and marks the kinematics as "dirty."
+    /// 
+    /// # Panics
+    /// Panics if the input slice length does not match the joint count `J`.
     pub fn set_joint_positions(&mut self, positions: &[f64; J]) {
         assert_eq!(positions.len(), self.joints.len(), "Position vector length mismatch");
         for (joint, &pos) in self.joints.iter_mut().zip(positions.iter()) {
