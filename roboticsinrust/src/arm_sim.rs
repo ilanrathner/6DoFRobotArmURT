@@ -5,6 +5,7 @@ use kiss3d::text::Font;
 use kiss3d::nalgebra::{Translation3, Point2, Point3, Vector3, Matrix3, UnitQuaternion}; 
 use kiss3d::event::{Key, Action};
 use std::time::Duration;
+use std::time::Instant;
 use std::fmt::Write;
 use crate::dh_arm_model::DHArmModel;
 use crate::dh::Pose;
@@ -149,7 +150,6 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
     }
 
 
-
     pub fn run(&mut self) {
         println!("=== Continuous Arm Simulation (Kiss3d) ===");
         println!("Controls:");
@@ -157,6 +157,8 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
         println!("a/s, d/f, g/h  -> angular X/Y/Z +/-");
         println!("space          -> reset");
         println!("q              -> quit\n");
+
+        let mut last_time = Instant::now();
 
         let target = Point3::new(0.0f32, 0.0f32, 30.0f32);
         let eye = Point3::new(40.0f32, -80.0f32, 50.0f32);
@@ -175,7 +177,7 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
             joint_nodes.push(s);
         }
 
-        let dt_duration = Duration::from_secs_f64(self.dt);
+        //let dt_duration = Duration::from_secs_f64(self.dt);
         let world_axis_len = 1.0;
         let frame_axis_len = 0.25;
         let world_pose = Pose::new(Vector3::new(0.0, 0.0, 0.0), Matrix3::identity());
@@ -183,6 +185,10 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
         Self::draw_board(&mut window, -5.0, 35.0, 90.0, 60.0);
 
         while window.render_with_camera(&mut camera) {
+            let delta_secs = last_time.elapsed().as_secs_f64();
+            last_time = Instant::now();
+            self.dt = delta_secs; // Update dt based on actual frame time for more accurate simulation
+
             if window.get_key(Key::Q) == Action::Press { break; }
 
             self.get_keyboard_input(&window);
@@ -208,7 +214,7 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
             window.draw_text(&vel_text, &Point2::new(10.0, 10.0), 60.0, &font, &Point3::new(1.0, 1.0, 1.0));
             
 
-            std::thread::sleep(dt_duration);
+            //std::thread::sleep(dt_duration);
         }
     }
 }

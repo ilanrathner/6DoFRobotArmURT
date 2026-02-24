@@ -65,9 +65,14 @@ fn main() {
     let dt = 0.05; // 50 ms per step
 
     let controller = TaskSpacePidController::new(
-        SVector::<f64, 6>::from_element(0.0), // kp
-        SVector::<f64, 6>::from_element(0.0), // ki
-        SVector::<f64, 6>::from_element(0.0), // kd
+        // Proportional Gains (Kp) - [x, y, z, roll, pitch, yaw]
+        SVector::<f64, 6>::from([1.0, 1.0, 1.0, 0.0, 0.0, 0.0]), 
+        
+        // Integral Gains (Ki)
+        SVector::<f64, 6>::from([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), 
+        
+        // Derivative Gains (Kd)
+        SVector::<f64, 6>::from([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), 
     );
 
     let mut sim = ArmSim::new(arm, controller,  dt);
