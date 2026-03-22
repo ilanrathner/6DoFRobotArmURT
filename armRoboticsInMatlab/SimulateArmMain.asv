@@ -4,7 +4,6 @@ dh = createDHTable(linklengths, thetas);
 
 orientationYPR = [0, pi/2, 0];
 
-
 %testing inverse kinematics
 % T = transMax(0,7,dh);
 % R = T(1:3,1:3);
@@ -17,14 +16,15 @@ orientationYPR = [0, pi/2, 0];
 %plotReachableWorkspaceCombos(linklengths)
 hold on
 
-gridPoints = drawVerticalBoard('x', 30, -12, 100, 70, 10)
+gridPoints = drawVerticalBoard('x', 35, -5, 90, 60, 10)
+orientationYPR = [0, pi/2, 0];
 testLinklengthsWithIK(linklengths, orientationYPR, gridPoints);
 
 %validLinkLengths = findValidLengths(gridPoints)
-%hold on
+hold on
 %armSim = initialiseArm(dh);
 % 
-%[linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim, gridPoints);
+[linklengths, thetas] = controlArmSimulation(linklengths, thetas, armSim, gridPoints);
 %hold on
 
 

@@ -40,8 +40,10 @@ function testLinklengthsWithIK(linkLengths, orientationYPR, testPoints)
 
         catch ME
             % Close figure and rethrow error
-            close(fig);
-            rethrow(ME);
+            %close(fig);
+            %rethrow(ME);
+            fprintf('The points %d %d %d is not reachable', x,y,z);
+            continue
         end
     end
 

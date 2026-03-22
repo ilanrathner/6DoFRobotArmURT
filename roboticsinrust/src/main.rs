@@ -26,8 +26,8 @@ fn main() {
         // Insert DH rows with joint_index
         DHRow::new(0.0, 0.0, 9.0, 0.0, false, Some(0)),   // joint 1
         DHRow::new(0.0, -90.0, 0.0, -90.0, false, Some(1)), // joint 2
-        DHRow::new(34.0, 0.0, 0.0, 90.0, false, Some(2)),  // joint 3
-        DHRow::new(0.0, 90.0, 32.0, 0.0, false, Some(3)),  // joint 4
+        DHRow::new(24.0, 0.0, 0.0, 90.0, false, Some(2)),  // joint 3
+        DHRow::new(0.0, 90.0, 22.0, 0.0, false, Some(3)),  // joint 4
         DHRow::new(0.0, -90.0, 0.0, 0.0, false, Some(4)),  // joint 5
         DHRow::new(0.0, 90.0, 15.0, 0.0, false, Some(5)),  // joint 6
         // Add end-effector fixed frame (no joint)
