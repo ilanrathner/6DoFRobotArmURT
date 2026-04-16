@@ -1,21 +1,12 @@
-mod dh;
-mod dh_arm_model;
-mod inverse_kinematics_solvers;
 mod arm_sim;
-mod joint;
-mod task_space_pid_controller;
 
-
-use task_space_pid_controller::TaskSpacePidController;
-use joint::{Joint, JointType};
-use dh::{DHTable, DHRow};
-use dh_arm_model::DHArmModel;
+use dh_arm_model::task_space_pid_controller::TaskSpacePidController;
+use dh_arm_model::joint::{Joint, JointType};
+use dh_arm_model::dh::{DHTable, DHRow};
+use dh_arm_model::dh_arm_model::DHArmModel;
 use arm_sim::ArmSim;
-
-
 use nalgebra::SVector;
-
-use crate::inverse_kinematics_solvers::UrtIkSolver;
+use dh_arm_model::inverse_kinematics_solvers::UrtIkSolver;
 
 const NUM_FRAMES: usize = 7;
 const NUM_JOINTS: usize = 6;

@@ -1,0 +1,7 @@
+[package]
+name = "dh_arm_model"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+nalgebra = "0.30"

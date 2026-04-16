@@ -4,13 +4,12 @@ use kiss3d::scene::SceneNode;
 use kiss3d::text::Font;
 use kiss3d::nalgebra::{Translation3, Point2, Point3, Vector3, Matrix3, UnitQuaternion}; 
 use kiss3d::event::{Key, Action};
-use std::time::Duration;
 use std::time::Instant;
 use std::fmt::Write;
-use crate::dh_arm_model::DHArmModel;
-use crate::dh::Pose;
-use crate::task_space_pid_controller::TaskSpacePidController;
-use crate::inverse_kinematics_solvers::IkSolver;
+use dh_arm_model::dh_arm_model::DHArmModel;
+use dh_arm_model::dh::Pose;
+use dh_arm_model::task_space_pid_controller::TaskSpacePidController;
+use dh_arm_model::inverse_kinematics_solvers::IkSolver;
 
 
 /// Simulation for task-space velocity control with continuous loop and non-blocking input.
