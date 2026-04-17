@@ -21,21 +21,21 @@ Core library containing all arm modeling logic:
 Initial testing simulation using Kiss3D for visualization. This was created to validate the DH model with stick figure rendering for a specific arm configuration (6-DOF URT arm).
 
 **To run Kiss3D simulation:**
-```bash
+```
 cargo run -p kiss3d_sim
 ```
 
-### `sim_bevy`
+### `bevy_sim`
 New advanced simulation framework using the Bevy engine for more complex interactions and features.
 
 **To run Bevy simulation:**
-```bash
-cargo run -p sim_bevy
+```
+cargo run -p bevy_sim
 ```
 
 ## Building
 
-```bash
+```
 cargo build
 ```
 
