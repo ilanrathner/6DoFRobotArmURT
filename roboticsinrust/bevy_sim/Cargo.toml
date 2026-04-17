@@ -1,0 +1,7 @@
+[package]
+name = "bevy_sim"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dh_arm_model = { path = "../dh_arm_model" }

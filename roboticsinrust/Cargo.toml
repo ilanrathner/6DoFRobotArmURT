@@ -1,5 +1,5 @@
 [workspace]
-members = ["dh_arm_model", "kiss3d_sim"]
+members = ["bevy_sim","dh_arm_model", "kiss3d_sim"]
 resolver = "2"
 
 [workspace.package]
