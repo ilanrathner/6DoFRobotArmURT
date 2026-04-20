@@ -1,4 +1,5 @@
 /// The mechanical classification of a joint
+#[derive (Copy, Clone)]
 pub enum JointType {
     Revolute,   // angle, radians
     Prismatic,  // position, meters (or consistent linear unit)

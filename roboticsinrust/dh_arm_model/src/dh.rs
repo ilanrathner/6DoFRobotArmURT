@@ -2,19 +2,71 @@ use crate::joint::{Joint, JointType};
 use nalgebra::{Matrix4, Matrix3,  Vector3, SMatrix};
 
 
+pub enum ParamValue {
+    /// A fixed physical dimension (e.g., link length, fixed twist).
+    Constant(f64),
+    /// A dimension that changes with a joint (e.g., d for prismatic, theta for revolute).
+    /// base_offset is the physical starting length.
+    Variable {
+        base_offset: f64,
+        joint_index: usize,
+    },
+}
+
+pub struct DHParam {
+    pub value: ParamValue,
+    /// If true, the IK solver will "pluck" this resolved value as a link length.
+    pub is_ik_link: bool,
+}
+
+impl DHParam {
+    /// Resolves the current numeric value based on joint positions.
+    pub fn get_val(&self, joints: &[Joint]) -> f64 {
+        match self.value {
+            ParamValue::Constant(c) => c,
+            ParamValue::Variable { base_offset, joint_index } => {
+                base_offset + joints[joint_index].position
+            }
+        }
+    }
+
+    // Helper constructors to make main.rs clean
+    pub fn variable_angle(base: f64, idx: usize) -> Self {
+        Self { value: ParamValue::Variable { base_offset: base.to_radians(), joint_index: idx }, is_ik_link: false }
+    }
+
+    pub fn constant_angle(val: f64) -> Self {
+        Self { value: ParamValue::Constant(val.to_radians()), is_ik_link: false }
+    }
+
+    pub fn constant(val: f64) -> Self {
+        Self { value: ParamValue::Constant(val), is_ik_link: false }
+    }
+
+    pub fn constant_link(val: f64) -> Self {
+        Self { value: ParamValue::Constant(val), is_ik_link: true }
+    }
+
+    pub fn variable(base: f64, idx: usize) -> Self {
+        Self { value: ParamValue::Variable { base_offset: base, joint_index: idx }, is_ik_link: false }
+    }
+
+    pub fn variable_link(base: f64, idx: usize) -> Self {
+        Self { value: ParamValue::Variable { base_offset: base, joint_index: idx }, is_ik_link: true }
+    }
+
+}
+
+
 /// Represents a single row in a Denavit-Hartenberg (DH) parameter table.
 /// 
 /// This struct manages the transformation data for a single frame, which can
 /// either be a physical joint or a fixed frame offset.
 pub struct DHRow {
-    a: f64,      
-    alpha: f64,  
-    d: f64,       
-    theta: f64,  
-    /// If true, this frame represents a static offset rather than a moving joint
-    fixed_frame: bool, 
-    /// The index mapping this row to a specific joint in the joint state array
-    joint_index: Option<usize>,
+    a: DHParam,      
+    alpha: DHParam,  
+    d: DHParam,       
+    theta: DHParam,  
 }
 
 impl DHRow {
@@ -22,15 +74,8 @@ impl DHRow {
     /// 
     /// Note: `alpha` and `theta` should be provided in **degrees**; 
     /// they are converted to radians internally.
-    pub fn new(a: f64, alpha: f64, d: f64, theta: f64, fixed_frame: bool, joint_index: Option<usize>) -> Self {
-        Self  {
-            a,
-            alpha: alpha.to_radians(),
-            d,
-            theta: theta.to_radians(),
-            fixed_frame,
-            joint_index,
-        }
+    pub fn new(a: DHParam, alpha: DHParam, d: DHParam, theta: DHParam) -> Self {
+        Self  { a, alpha, d, theta }
     }
 
     /// Internal helper to generate a standard DH transformation matrix.
@@ -52,45 +97,44 @@ impl DHRow {
     /// Computes the 4x4 transformation matrix for this row given the current joint states.
     pub fn get_row_trans_mat(&self, joints: &[Joint]) -> Matrix4<f64> {
         
-        let theta_total = if self.fixed_frame {
-            self.theta
-        } else {
-            let idx = self.joint_index.expect("Joint row missing joint_index");
-            match joints[idx].joint_type {
-                JointType::Revolute => self.theta + joints[idx].position,
-                JointType::Prismatic => self.theta,
-            }
-        };
-        
+        // Everything resolves itself based on whether it's constant or variable
+        let a = self.a.get_val(joints);
+        let alpha = self.alpha.get_val(joints); // Remember to handle radians/degrees conversion
+        let d = self.d.get_val(joints);
+        let theta = self.theta.get_val(joints);
 
-        let d_total = if self.fixed_frame {
-            self.d
-        } else {
-            let idx = self.joint_index.expect("Joint row missing joint_index");
-            match joints[idx].joint_type {
-                JointType::Revolute => self.d,
-                JointType::Prismatic => self.d + joints[idx].position,
-            }
-        };
+        Self::dh_row_matrix(a, alpha, d, theta)
+    }
 
-        Self::dh_row_matrix(self.a, self.alpha, d_total, theta_total)
+    /// Returns the joint index and whether it is a prismatic or revolute joint
+    pub fn get_joint_info(&self) -> Option<(usize, JointType)> {
+        // A row "has a joint" if any of its parameters are Variable.
+        // We check in order of standard DH priority: theta, then d.
+        if let ParamValue::Variable {joint_index, .. } = self.theta.value {
+            return Some((joint_index, JointType::Revolute)); // Revolute
+        }
+        if let ParamValue::Variable {joint_index, .. } = self.d.value {
+            return Some((joint_index, JointType::Prismatic)); // Prismatic
+        }
+        if let ParamValue::Variable {joint_index, .. } = self.alpha.value {
+            return Some((joint_index, JointType::Revolute)); // Revolute
+        }
+        if let ParamValue::Variable {joint_index, .. } = self.a.value {
+            return Some((joint_index, JointType::Prismatic)); // Prismatic (rare, but possible)
+        }
+        None // Fixed frame
     }
 
     /// Print DH row info, showing joint type and current joint value if applicable
     pub fn print_row(&self, row_index: usize, joints: &[Joint]) {
-        if self.fixed_frame {
-            println!("Frame {}: Fixed Frame | a={:.2}, alpha={:.2}, d={:.2}, theta={:.2}",
-                row_index, self.a, self.alpha.to_degrees(), self.d, self.theta.to_degrees());
-        } else {
-            let idx = self.joint_index.expect("Joint row missing joint_index");
-            let joint = &joints[idx];
-            let joint_info = match joint.joint_type {
-                JointType::Revolute => format!("Revolute Joint {} | angle={:.2} deg", idx + 1, joint.position.to_degrees()),
-                JointType::Prismatic => format!("Prismatic Joint {} | extension={:.2} units", idx + 1, joint.position),
-            };
-            println!("Frame {}: {} | a={:.2}, alpha={:.2}, d={:.2}, theta={:.2}",
-                row_index, joint_info, self.a, self.alpha.to_degrees(), self.d, self.theta.to_degrees());
-        };
+        let a = self.a.get_val(joints);
+        let alpha = self.alpha.get_val(joints); // Remember to handle radians/degrees conversion
+        let d = self.d.get_val(joints);
+        let theta = self.theta.get_val(joints);
+
+        println!("Frame {}: | a={:.2}, alpha={:.2}, d={:.2}, theta={:.2}",
+            row_index, a, alpha.to_degrees(), d, theta.to_degrees());
+        
     }
 }
 
@@ -101,12 +145,39 @@ impl DHRow {
 /// * `J`: The number of movable Joints.
 pub struct DHTable<const F: usize, const J: usize> {
     rows: [DHRow; F],
+
+    //cached map of each row to its respective joint index and type if it has one
+    row_map: [Option<(usize, JointType)>; F],
 }
 
 impl<const F: usize, const J: usize> DHTable<F, J> {
     pub fn new(rows: [DHRow; F]) -> Self {
-        Self { rows }
+        let mut row_map = [None; F];
+        for (i, row) in rows.iter().enumerate() {
+            // Do the "expensive" 4 if-lets here, only once!
+            row_map[i] = row.get_joint_info(); 
+        }
+        Self { rows, row_map }
     }
+
+    /// Returns all parameters marked as 'is_ik_link' from the table.
+    /// This resolves both Constant links and Variable (Prismatic) links.
+    pub fn get_current_link_lengths(&self, joints: &[Joint]) -> Vec<f64> {
+        let mut links = Vec::new();
+
+        for row in &self.rows {
+            // Check 'a' and 'd' for the IK link flag. 
+            // Most IK solvers expect links in the order they appear along the kinematic chain.
+            if row.a.is_ik_link {
+                links.push(row.a.get_val(joints));
+            }
+            if row.d.is_ik_link {
+                links.push(row.d.get_val(joints));
+            }
+        }
+        links
+    }
+
     pub fn transformation_matrix_j_i(&self, initial_row_index: usize, final_row_index:usize, joints: &[Joint; J]) -> Matrix4<f64> {
 
         let r = F;
@@ -171,9 +242,11 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
 
         let mut j = SMatrix::<f64,6, J>::zeros(); 
 
-        for (i, row) in self.rows.iter().enumerate() {
-            if row.fixed_frame { continue; }
-            let joint_index = row.joint_index.expect("Joint row missing joint_index");
+        for (i, row_info) in self.row_map.iter().enumerate() {
+            let (joint_index, joint_type) = match *row_info {
+                Some(info) => info,
+                None => continue, // Skip fixed frames
+            };
 
             let pose_i = &poses[i];
             let z_i = pose_i.z_axis();
@@ -181,7 +254,7 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
             let p_diff = p_end - p_i;
 
 
-            let (linear, angular) = match joints[joint_index].joint_type {
+            let (linear, angular) = match joint_type {
                 JointType::Revolute => (z_i.cross(&p_diff), z_i),
                 JointType::Prismatic => (z_i, Vector3::zeros()),
             };
@@ -271,7 +344,7 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
     pub fn print_table(&self, joints: &[Joint; J]) {
         println!("================ DH TABLE ================");
         for (i, row) in self.rows.iter().enumerate() {
-            row.print_row(i,joints);
+            row.print_row(i, joints);
         }
         println!("==========================================");
     }
