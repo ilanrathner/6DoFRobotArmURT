@@ -79,9 +79,9 @@ impl TaskSpacePidController {
     /// - dt: Time step for integration
     /// Output:
     /// - Joint velocity commands to send to motors in degrees/s
-    pub fn compute<const F: usize, const J: usize, S: IkSolver<J>>(
+    pub fn compute<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>>(
         &mut self,
-        arm: &mut DHArmModel<F, J, S>,
+        arm: &mut DHArmModel<F, J, L, S>,
         xd_des_arr: &[f64; 6],       // Input: [vx, vy, vz] in World, [wx, wy, wz] in End-Effector
         motor_pos: &[f64; J],
         motor_vels: &[f64; J],

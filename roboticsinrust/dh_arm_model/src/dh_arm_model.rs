@@ -16,10 +16,11 @@ use nalgebra::{SMatrix, SVector};
 /// # Type Parameters
 /// * `F`: Number of coordinate frames in the kinematic chain.
 /// * `J`: Number of movable Joints.
+/// * `L`: Number of Links.
 /// * `S`: The Inverse Kinematics solver implementation.
-pub struct DHArmModel<const F: usize, const J: usize, S: IkSolver<J>> {
+pub struct DHArmModel<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> {
     /// Internal DH representation for Forward Kinematics and Jacobian math.
-    dh_table: DHTable<F, J>,          
+    dh_table: DHTable<F, J, L>,          
     /// State of each physical joint (position, velocity, limits).
     joints: [Joint ; J],        
     /// Cached geometric Jacobian
@@ -35,20 +36,21 @@ pub struct DHArmModel<const F: usize, const J: usize, S: IkSolver<J>> {
 
     ik_solver: S, // Inverse Kinematics solver
     /// Generic list of link parameters needed by the specific IkSolver.
-    ik_link_parameters: Vec<f64>,
+    link_lengths_cache: [f64; L],
 }
 
-impl<const F: usize, const J: usize, S: IkSolver<J>> DHArmModel<F, J, S> {
+impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> DHArmModel<F, J, L, S> {
     /// Creates a new arm model instance.
     /// 
     /// If `damping` is not provided, it defaults to a stable value of $1e-4$.
     pub fn new(
-        dh_table: DHTable<F, J>,
+        dh_table: DHTable<F, J, L>,
         joints: [Joint; J],
         damping: Option<f64>,
         ik_solver: S,
-        ik_link_parameters: Vec<f64>
     ) -> Self {
+        let initial_link_lengths = dh_table.get_current_link_lengths(&joints);
+
         Self {
             dh_table,
             joints,
@@ -57,12 +59,16 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> DHArmModel<F, J, S> {
             dirty: true,
             damping: damping.unwrap_or(1e-4),
             ik_solver,
-            ik_link_parameters,
+            link_lengths_cache: initial_link_lengths,
         }
     }
 
-    pub fn dh_table(&self) -> &DHTable<F, J> {
+    pub fn dh_table(&self) -> &DHTable<F, J, L> {
         &self.dh_table
+    }
+
+    pub fn update_link_lengths_cache(&mut self) {
+        self.link_lengths_cache = self.dh_table.get_current_link_lengths(&self.joints);
     }
 
     /// Updates the position of all joints and marks the kinematics as "dirty."
@@ -143,7 +149,7 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> DHArmModel<F, J, S> {
         let y = target_pose.position.y;
         let z = target_pose.position.z;
         let r = &target_pose.rotation;
-        let link_lengths = &self.ik_link_parameters;
+        let link_lengths = &self.link_lengths_cache;
 
         self.ik_solver.solve_ik(x, y, z, r, link_lengths)
     }
@@ -155,7 +161,7 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> DHArmModel<F, J, S> {
         yaw: f64, pitch: f64, roll: f64
     ) -> Result<[f64; J], String> {
         let r = Pose::orientation_mat(yaw, pitch, roll); 
-        let link_lengths = &self.ik_link_parameters;
+        let link_lengths = &self.link_lengths_cache;
 
         self.ik_solver.solve_ik(x, y, z, &r, link_lengths)
     }

@@ -13,8 +13,8 @@ use dh_arm_model::inverse_kinematics_solvers::IkSolver;
 
 
 /// Simulation for task-space velocity control with continuous loop and non-blocking input.
-pub struct ArmSim<const F: usize, const J: usize, S: IkSolver<J>> {
-    arm: DHArmModel<F, J, S>,
+pub struct ArmSim<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> {
+    arm: DHArmModel<F, J, L, S>,
     controller: TaskSpacePidController,
     task_vel: [f64; 6],   // [vx, vy, vz, ω_roll, ω_pitch, ω_yaw]
     joint_vel: [f64; J],
@@ -22,8 +22,8 @@ pub struct ArmSim<const F: usize, const J: usize, S: IkSolver<J>> {
     dt: f64,
 }
 
-impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
-    pub fn new(mut arm: DHArmModel<F, J, S>, controller: TaskSpacePidController, dt: f64) -> Self {
+impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, J, L, S> {
+    pub fn new(mut arm: DHArmModel<F, J, L, S>, controller: TaskSpacePidController, dt: f64) -> Self {
         
         arm.set_joint_positions(&[0.0f64; J]);
         arm.set_joint_velocities(&[0.0f64; J]);
@@ -88,7 +88,7 @@ impl<const F: usize, const J: usize, S: IkSolver<J>> ArmSim<F, J, S> {
 
     fn draw_dh_arm(
         window: &mut Window,
-        arm: &DHArmModel<F, J, S>,
+        arm: &DHArmModel<F, J, L, S>,
         joint_nodes: &mut [SceneNode],
         world_pose: &Pose,
         world_axis_len: f32,

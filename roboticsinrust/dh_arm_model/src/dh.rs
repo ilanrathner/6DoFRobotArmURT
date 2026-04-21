@@ -141,16 +141,17 @@ impl DHRow {
 /// A Denavit-Hartenberg Table representing a full robotic kinematic chain.
 /// 
 /// # Type Parameters
-/// * `F`: The number of Frames in the table.
-/// * `J`: The number of movable Joints.
-pub struct DHTable<const F: usize, const J: usize> {
+/// * 'F': The number of Frames in the table.
+/// * 'J': The number of movable Joints.
+/// * 'L': The number of links
+pub struct DHTable<const F: usize, const J: usize, const L:usize> {
     rows: [DHRow; F],
 
     //cached map of each row to its respective joint index and type if it has one
     row_map: [Option<(usize, JointType)>; F],
 }
 
-impl<const F: usize, const J: usize> DHTable<F, J> {
+impl<const F: usize, const J: usize, const L:usize > DHTable<F, J, L> {
     pub fn new(rows: [DHRow; F]) -> Self {
         let mut row_map = [None; F];
         for (i, row) in rows.iter().enumerate() {
@@ -162,19 +163,31 @@ impl<const F: usize, const J: usize> DHTable<F, J> {
 
     /// Returns all parameters marked as 'is_ik_link' from the table.
     /// This resolves both Constant links and Variable (Prismatic) links.
-    pub fn get_current_link_lengths(&self, joints: &[Joint]) -> Vec<f64> {
-        let mut links = Vec::new();
+    pub fn get_current_link_lengths(&self, joints: &[Joint; J]) -> [f64; L] {
+        let mut links = [0.0; L];
+        let mut cursor = 0;
 
         for row in &self.rows {
-            // Check 'a' and 'd' for the IK link flag. 
-            // Most IK solvers expect links in the order they appear along the kinematic chain.
+            // Check 'a'
             if row.a.is_ik_link {
-                links.push(row.a.get_val(joints));
+                if cursor < L {
+                    links[cursor] = row.a.get_val(joints);
+                    cursor += 1;
+                }
             }
+            // Check 'd'
             if row.d.is_ik_link {
-                links.push(row.d.get_val(joints));
+                if cursor < L {
+                    links[cursor] = row.d.get_val(joints);
+                    cursor += 1;
+                }
             }
         }
+
+        // Safety check for development: 
+        // Ensures your L matches the actual 'is_ik_link' count in your rows.
+        debug_assert_eq!(cursor, L, "IK Link count mismatch! Found {}, expected L={}", cursor, L);
+
         links
     }
 
