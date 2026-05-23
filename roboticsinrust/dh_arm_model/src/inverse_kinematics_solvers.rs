@@ -16,7 +16,7 @@ pub trait IkSolver<const J: usize> {
         y: f64, 
         z: f64, 
         r: &Matrix3<f64>,
-        link_lengths: &[f64], // <--- CHANGE: Now a dynamically sized slice
+        link_lengths: &[f64], 
     ) -> Result<[f64; J], String>;
 }
 
