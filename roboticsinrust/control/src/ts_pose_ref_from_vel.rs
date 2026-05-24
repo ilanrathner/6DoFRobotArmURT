@@ -78,16 +78,12 @@ impl PoseRef {
 
         //skew is on the right because we are converting from end effector frame orientation velocity to world frame
         self.r_ref += dt * self.r_ref * w_skew;
-        // FIX 2: Re-orthogonalize the rotation matrix.
+        // Re-orthogonalize the rotation matrix.
         // Direct addition introduces numerical scaling and shearing drift over time.
-        if let Some(orthog_r) = self.r_ref.try_normalize(1e-6) {
-            self.r_ref = orthog_r;
-        } else {
-            // Fallback recovery if matrix somehow degrades past numerical recovery thresholds
-            let svd = self.r_ref.svd(true, true);
-            if let (Some(u), Some(v_t)) = (svd.u, svd.v_t) {
-                self.r_ref = u * v_t;
-            }
+        // Correct Re-orthogonalization using SVD
+        let svd = self.r_ref.svd(true, true);
+        if let (Some(u), Some(v_t)) = (svd.u, svd.v_t) {
+            self.r_ref = u * v_t;
         }
 
         let rotation = Rotation3::from_matrix_unchecked(self.r_ref);
@@ -110,6 +106,5 @@ impl PoseRef {
         self.quat_ref = UnitQuaternion::new_normalize(*(self.quat_ref * delta_quat));
         self.r_ref = self.quat_ref.to_rotation_matrix().into_inner();
     }
-
 
 }
