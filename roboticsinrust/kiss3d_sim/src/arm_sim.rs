@@ -80,6 +80,20 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
         println!("Reset velocities and joint positions to zero.");
     }
 
+    pub fn print_debug_state(&self) {
+        println!("--- DEBUG STATE ---");
+        println!("PoseRef:");
+        self.pose_ref.print_refs();
+        println!("Arm end-effector pose:");
+        self.arm.print_end_effector_pose();
+        println!("Controller stored PID state:");
+        self.controller.print_errors();
+        println!("Joint positions: [{}]", self.joint_pos.iter().map(|v| format!("{:.6}", v)).collect::<Vec<_>>().join(", "));
+        println!("Joint velocities: [{}]", self.joint_vel.iter().map(|v| format!("{:.6}", v)).collect::<Vec<_>>().join(", "));
+        println!("Task-space input: [{}]", self.task_vel.iter().map(|v| format!("{:.6}", v)).collect::<Vec<_>>().join(", "));
+        println!("-------------------");
+    }
+
     // ----- Visualization Helpers -----
     fn draw_frame_axes(window: &mut Window, pose: &Pose, length: f32) {
         let pos = Point3::new(
@@ -213,7 +227,7 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
             self.get_keyboard_input(&window);
 
             let _ = self.step();
-            println!("joint_vel: {:?}, joint_pos: {:?}", &self.joint_vel, &self.joint_pos);
+            Self::print_debug_state(&self);
 
             Self::draw_dh_arm(
                 &mut window,

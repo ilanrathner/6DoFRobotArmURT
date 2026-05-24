@@ -50,7 +50,7 @@ fn main() {
 
     // Instantiate the task-space velocity PID controller.
     let ts_vel_controller = TSVelPIDController::new(
-        SVector::<f64, 6>::from([0.0, 0.0, 10.0, 0.0, 0.0, 0.0]),
+        SVector::<f64, 6>::from([1.0, 1.0, 1.0, 0.0, 0.0, 0.0]),
         SVector::<f64, 6>::from([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
         SVector::<f64, 6>::from([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
     );
