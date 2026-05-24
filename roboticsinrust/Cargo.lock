@@ -830,6 +830,7 @@ dependencies = [
 name = "kiss3d_sim"
 version = "0.1.0"
 dependencies = [
+ "control",
  "dh_arm_model",
  "kiss3d",
  "nalgebra",

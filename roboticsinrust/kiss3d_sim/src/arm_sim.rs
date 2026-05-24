@@ -8,14 +8,17 @@ use std::time::Instant;
 use std::fmt::Write;
 use dh_arm_model::dh_arm_model::DHArmModel;
 use dh_arm_model::dh::Pose;
-use dh_arm_model::task_space_pid_controller::TaskSpacePidController;
 use dh_arm_model::inverse_kinematics_solvers::IkSolver;
+
+use control::ts_pose_ref_from_vel::PoseRef;
+use control::ts_vel_pid_controller::TSVelPIDController;
 
 
 /// Simulation for task-space velocity control with continuous loop and non-blocking input.
 pub struct ArmSim<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> {
     arm: DHArmModel<F, J, L, S>,
-    controller: TaskSpacePidController,
+    controller: TSVelPIDController,
+    pose_ref: PoseRef,
     task_vel: [f64; 6],   // [vx, vy, vz, ω_roll, ω_pitch, ω_yaw]
     joint_vel: [f64; J],
     joint_pos: [f64; J],
@@ -23,14 +26,21 @@ pub struct ArmSim<const F: usize, const J: usize, const L: usize,  S: IkSolver<J
 }
 
 impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, J, L, S> {
-    pub fn new(mut arm: DHArmModel<F, J, L, S>, controller: TaskSpacePidController, dt: f64) -> Self {
-        
+    pub fn new(
+        mut arm: DHArmModel<F, J, L, S>,
+        controller: TSVelPIDController,
+        dt: f64,
+    ) -> Self {
         arm.set_joint_positions(&[0.0f64; J]);
         arm.set_joint_velocities(&[0.0f64; J]);
+
+        let world_pose = arm.frame_pose(F - 1);
+        let pose_ref = PoseRef::new_from_pose(world_pose.position, world_pose.rotation);
 
         Self {
             arm,
             controller,
+            pose_ref,
             task_vel: [0.0; 6],
             joint_vel: [0.0; J],
             joint_pos: [0.0; J],
@@ -40,9 +50,17 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
 
     /// Step simulation using task-space velocity (Jacobian inverse)
     fn step(&mut self) -> Result<(), String> {
-        let theta_dot = self.controller.compute(&mut self.arm, &self.task_vel, &self.joint_pos, &self.joint_vel, self.dt);
+        // Integrate the pose reference before control.
+        self.pose_ref.euler_step_mat(&self.task_vel, self.dt);
+
+        // Update the arm's current state from encoder/joint readings.
+        self.arm.set_joint_positions(&self.joint_pos);
+        self.arm.set_joint_velocities(&self.joint_vel);
+
+        let theta_dot = self.controller.compute(&mut self.arm, &self.pose_ref, &self.task_vel, self.dt);
         //println!("{:?} -> {:?}", self.task_vel, theta_dot);
-        // Update internal joint state
+
+        // Update internal joint state after control output.
         for i in 0..J {
             self.joint_vel[i] = theta_dot[i];
             self.joint_pos[i] += self.joint_vel[i] * self.dt;
@@ -57,6 +75,8 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
         self.joint_pos = [0.0; J];
         self.arm.set_joint_positions(&[0.0f64; J]);
         self.arm.set_joint_velocities(&[0.0f64; J]);
+        let world_pose = self.arm.frame_pose(F - 1);
+        self.pose_ref = PoseRef::new_from_pose(world_pose.position, world_pose.rotation);
         println!("Reset velocities and joint positions to zero.");
     }
 

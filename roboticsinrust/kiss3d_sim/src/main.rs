@@ -1,12 +1,13 @@
 mod arm_sim;
 
-use dh_arm_model::task_space_pid_controller::TaskSpacePidController;
 use dh_arm_model::joint::{Joint, JointType};
 use dh_arm_model::dh::{DHTable, DHRow, DHParam};
 use dh_arm_model::dh_arm_model::DHArmModel;
 use arm_sim::ArmSim;
 use nalgebra::SVector;
 use dh_arm_model::inverse_kinematics_solvers::UrtIkSolver;
+
+use control::ts_vel_pid_controller::TSVelPIDController;
 
 const NUM_FRAMES: usize = 7;
 const NUM_JOINTS: usize = 6;
@@ -47,17 +48,13 @@ fn main() {
     // Choose dt for simulation (seconds)
     let dt = 0.05; // 50 ms per step
 
-    let controller = TaskSpacePidController::new(
-        // Proportional Gains (Kp) - [x, y, z, roll, pitch, yaw]
-        SVector::<f64, 6>::from([1.0, 1.0, 1.0, 0.0, 0.0, 0.0]), 
-        
-        // Integral Gains (Ki)
-        SVector::<f64, 6>::from([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), 
-        
-        // Derivative Gains (Kd)
-        SVector::<f64, 6>::from([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), 
+    // Instantiate the task-space velocity PID controller.
+    let ts_vel_controller = TSVelPIDController::new(
+        SVector::<f64, 6>::from([0.0, 0.0, 10.0, 0.0, 0.0, 0.0]),
+        SVector::<f64, 6>::from([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        SVector::<f64, 6>::from([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
     );
 
-    let mut sim = ArmSim::new(arm, controller,  dt);
+    let mut sim = ArmSim::new(arm, ts_vel_controller, dt);
     sim.run();
 }

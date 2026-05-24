@@ -5,5 +5,6 @@ edition.workspace = true
 
 [dependencies]
 dh_arm_model = { path = "../dh_arm_model" }
+control = { path = "../control"  }
 kiss3d = "0.36.0"
 nalgebra = "0.30"

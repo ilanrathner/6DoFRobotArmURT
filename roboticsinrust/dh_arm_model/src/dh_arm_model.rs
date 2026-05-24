@@ -127,6 +127,18 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> DHArmModel
         self.dh_table.get_frame_pose(frame_index, &self.joints)
     }
 
+    /// Print the current end-effector frame pose.
+    pub fn print_end_effector_pose(&self) {
+        let pose = self.frame_pose(F - 1);
+        println!("End-effector position: [{:.6}, {:.6}, {:.6}]", pose.position.x, pose.position.y, pose.position.z);
+        println!(
+            "End-effector rotation:\n  [{:.6}, {:.6}, {:.6}]\n  [{:.6}, {:.6}, {:.6}]\n  [{:.6}, {:.6}, {:.6}]",
+            pose.rotation[(0, 0)], pose.rotation[(0, 1)], pose.rotation[(0, 2)],
+            pose.rotation[(1, 0)], pose.rotation[(1, 1)], pose.rotation[(1, 2)],
+            pose.rotation[(2, 0)], pose.rotation[(2, 1)], pose.rotation[(2, 2)],
+        );
+    }
+
     pub fn frame_poses(&self) -> [Pose; F] {
         self.dh_table.all_poses(&self.joints)
     }

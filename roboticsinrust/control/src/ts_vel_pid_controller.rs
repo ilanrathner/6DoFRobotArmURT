@@ -35,7 +35,6 @@ impl TSVelPIDController {
     /// [vx, vy, vz] in World frame, 
     /// [wx, wy, wz] in End-Effector frame (angular velocity in degrees/s, will be converted to rad/s)
     /// - motor_pos: Current joint positions from encoders  
-    /// - motor_vels: Current joint velocities from encoders
     /// - dt: Time step for integration
     /// Output:
     /// - Joint velocity commands to send to motors in degrees/s
@@ -58,8 +57,7 @@ impl TSVelPIDController {
                                                                          ts_vel_input[5].to_radians());
 
         // TRANSFORM: Map EE rotation to World Frame
-        let r_ref = pose_reference.get_r_ref();
-        let w_des_world = r_ref * w_des_ee;
+        let w_des_world = wrist_pose.rotation * w_des_ee;
 
         // Construct the unified world-frame desired velocity for Feedforward
         let mut vel_des_world = SVector::<f64, 6>::zeros();
@@ -74,6 +72,7 @@ impl TSVelPIDController {
         let y_e = wrist_pose.y_axis();
         let z_e = wrist_pose.z_axis();
 
+        let r_ref = pose_reference.get_r_ref();
         let x_r: Vector3<f64> = r_ref.column(0).into();
         let y_r: Vector3<f64> = r_ref.column(1).into();
         let z_r: Vector3<f64> = r_ref.column(2).into();
@@ -109,6 +108,17 @@ impl TSVelPIDController {
         }
 
         qd_array
+    }
+
+    pub fn print_errors(&self) {
+        println!("prev_error: [{:.6}, {:.6}, {:.6}, {:.6}, {:.6}, {:.6}]",
+            self.prev_error[0], self.prev_error[1], self.prev_error[2],
+            self.prev_error[3], self.prev_error[4], self.prev_error[5],
+        );
+        println!("integral_error: [{:.6}, {:.6}, {:.6}, {:.6}, {:.6}, {:.6}]",
+            self.integral_error[0], self.integral_error[1], self.integral_error[2],
+            self.integral_error[3], self.integral_error[4], self.integral_error[5],
+        );
     }
 }
 

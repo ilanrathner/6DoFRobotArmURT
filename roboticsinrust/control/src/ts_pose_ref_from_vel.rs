@@ -49,6 +49,16 @@ impl PoseRef {
         &self.quat_ref
     }
 
+    pub fn print_refs(&self) {
+        println!("x_ref: [{:.6}, {:.6}, {:.6}]", self.x_ref.x, self.x_ref.y, self.x_ref.z);
+        println!(
+            "r_ref:\n  [{:.6}, {:.6}, {:.6}]\n  [{:.6}, {:.6}, {:.6}]\n  [{:.6}, {:.6}, {:.6}]",
+            self.r_ref[(0, 0)], self.r_ref[(0, 1)], self.r_ref[(0, 2)],
+            self.r_ref[(1, 0)], self.r_ref[(1, 1)], self.r_ref[(1, 2)],
+            self.r_ref[(2, 0)], self.r_ref[(2, 1)], self.r_ref[(2, 2)],
+        );
+    }
+
     /// Update the Pose from task space velocity inputs, integrating orientation via the rotation matrix.
     /// ts_vel_input is made up of [vx, vy, vz] in World frame and
     /// [wx, wy, wz] in End-Effector frame (angular velocity in degrees/s, converted to rad/s).
@@ -100,4 +110,6 @@ impl PoseRef {
         self.quat_ref = UnitQuaternion::new_normalize(*(self.quat_ref * delta_quat));
         self.r_ref = self.quat_ref.to_rotation_matrix().into_inner();
     }
+
+
 }
