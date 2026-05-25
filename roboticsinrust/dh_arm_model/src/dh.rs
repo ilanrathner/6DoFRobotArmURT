@@ -237,10 +237,10 @@ impl<const F: usize, const J: usize, const L:usize > DHTable<F, J, L> {
         poses
     }
 
-    pub fn get_frame_pose(&self, frame_index: usize, joints: &[Joint; J]) -> Pose {
-        assert!(frame_index < F);
+    pub fn get_frame_pose(&self, frame: usize, joints: &[Joint; J]) -> Pose {
+        assert!(frame> 0 && frame <= F);
         let mut transform = Matrix4::<f64>::identity();
-        for k in 0..frame_index {
+        for k in 0..frame {
             transform *= self.rows[k].get_row_trans_mat(joints);
         }
         Pose::from_homogeneous(&transform)

@@ -46,7 +46,7 @@ impl TSVelPIDController {
         dt: f64,
     ) -> [f64; J] {
         //  Current end-effector pose
-        let wrist_pose = arm.frame_pose(F - 1); // Pose { position, rotation }
+        let wrist_pose = arm.frame_pose(F); // Pose { position, rotation }
 
         // Parse desired task-space velocity directly from array
         // Linear (World)

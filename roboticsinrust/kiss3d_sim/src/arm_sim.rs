@@ -34,7 +34,7 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
         arm.set_joint_positions(&[0.0f64; J]);
         arm.set_joint_velocities(&[0.0f64; J]);
 
-        let world_pose = arm.frame_pose(F - 1);
+        let world_pose = arm.frame_pose(F);
         let pose_ref = PoseRef::new_from_pose(world_pose.position, world_pose.rotation);
 
         Self {
@@ -50,12 +50,12 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
 
     /// Step simulation using task-space velocity (Jacobian inverse)
     fn step(&mut self) -> Result<(), String> {
-        // Integrate the pose reference before control.
-        self.pose_ref.euler_step_mat(&self.task_vel, self.dt);
-
-        // Update the arm's current state from encoder/joint readings.
+        // Update the arm's current state from encoder/joint readings for control.
         self.arm.set_joint_positions(&self.joint_pos);
         self.arm.set_joint_velocities(&self.joint_vel);
+
+        // Integrate the pose reference before control.
+        self.pose_ref.euler_step_mat(&self.task_vel, self.dt);
 
         let theta_dot = self.controller.compute(&mut self.arm, &self.pose_ref, &self.task_vel, self.dt);
         //println!("{:?} -> {:?}", self.task_vel, theta_dot);
@@ -66,6 +66,7 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
             self.joint_pos[i] += self.joint_vel[i] * self.dt;
         }
 
+       
         Ok(())
     }
 
@@ -75,7 +76,7 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
         self.joint_pos = [0.0; J];
         self.arm.set_joint_positions(&[0.0f64; J]);
         self.arm.set_joint_velocities(&[0.0f64; J]);
-        let world_pose = self.arm.frame_pose(F - 1);
+        let world_pose = self.arm.frame_pose(F);
         self.pose_ref = PoseRef::new_from_pose(world_pose.position, world_pose.rotation);
         println!("Reset velocities and joint positions to zero.");
     }
@@ -121,6 +122,7 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
     }
 
     fn draw_dh_arm(
+        &self,
         window: &mut Window,
         arm: &DHArmModel<F, J, L, S>,
         joint_nodes: &mut [SceneNode],
@@ -129,6 +131,7 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
         frame_axis_len: f32,
     ) {
         let poses = arm.frame_poses();
+        Self::print_frame_poses(&poses, world_pose);
 
         // Draw world frame
         Self::draw_frame_axes(window, world_pose, world_axis_len);
@@ -157,6 +160,36 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
 
             prev_pos = current_pos;
         }
+    }
+
+    fn print_frame_poses(poses: &[Pose; F], world_pose: &Pose) {
+        println!("--- Current DH Frame Poses ---");
+        println!(
+            "World pose position: [{:.4}, {:.4}, {:.4}]",
+            world_pose.position.x,
+            world_pose.position.y,
+            world_pose.position.z,
+        );
+
+        for (i, pose) in poses.iter().enumerate() {
+            println!(
+                "Frame {:2}: pos=[{:.4}, {:.4}, {:.4}] x=[{:.4}, {:.4}, {:.4}] y=[{:.4}, {:.4}, {:.4}] z=[{:.4}, {:.4}, {:.4}]",
+                i,
+                pose.position.x,
+                pose.position.y,
+                pose.position.z,
+                pose.rotation[(0, 0)],
+                pose.rotation[(1, 0)],
+                pose.rotation[(2, 0)],
+                pose.rotation[(0, 1)],
+                pose.rotation[(1, 1)],
+                pose.rotation[(2, 1)],
+                pose.rotation[(0, 2)],
+                pose.rotation[(1, 2)],
+                pose.rotation[(2, 2)],
+            );
+        }
+        println!("-----------------------------");
     }
 
     
@@ -227,9 +260,10 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
             self.get_keyboard_input(&window);
 
             let _ = self.step();
-            Self::print_debug_state(&self);
+            //Self::print_debug_state(&self);
 
             Self::draw_dh_arm(
+                &self,
                 &mut window,
                 &self.arm,
                 &mut joint_nodes,
@@ -237,6 +271,7 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> ArmSim<F, 
                 world_axis_len,
                 frame_axis_len,
             );
+            Self::print_debug_state(&self);
 
             let mut vel_text = String::new();
             write!(&mut vel_text,

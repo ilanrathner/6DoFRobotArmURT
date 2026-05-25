@@ -4,4 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+bevy = { version = "0.18" }
 dh_arm_model = { path = "../dh_arm_model" }
+control = { path = "../control" }
+nalgebra = "0.30"

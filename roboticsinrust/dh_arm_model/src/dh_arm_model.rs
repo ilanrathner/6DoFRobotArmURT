@@ -122,14 +122,14 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> DHArmModel
     }
 
     /// Get the current end-effector pose (computes if dirty)
-    pub fn frame_pose(&self, frame_index: usize) -> Pose {
+    pub fn frame_pose(&self, frame: usize) -> Pose {
         // Pass self.joints to DHTable
-        self.dh_table.get_frame_pose(frame_index, &self.joints)
+        self.dh_table.get_frame_pose(frame, &self.joints)
     }
 
     /// Print the current end-effector frame pose.
     pub fn print_end_effector_pose(&self) {
-        let pose = self.frame_pose(F - 1);
+        let pose = Self::frame_pose(&self, F );
         println!("End-effector position: [{:.6}, {:.6}, {:.6}]", pose.position.x, pose.position.y, pose.position.z);
         println!(
             "End-effector rotation:\n  [{:.6}, {:.6}, {:.6}]\n  [{:.6}, {:.6}, {:.6}]\n  [{:.6}, {:.6}, {:.6}]",
@@ -137,6 +137,7 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> DHArmModel
             pose.rotation[(1, 0)], pose.rotation[(1, 1)], pose.rotation[(1, 2)],
             pose.rotation[(2, 0)], pose.rotation[(2, 1)], pose.rotation[(2, 2)],
         );
+        //self.joints.iter().for_each(|joint| joint.print_info());
     }
 
     pub fn frame_poses(&self) -> [Pose; F] {
