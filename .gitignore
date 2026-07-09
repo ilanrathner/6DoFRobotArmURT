@@ -1,2 +1,4 @@
 URTGit\Arm/
 URTGit/
+/target/
+**/target/

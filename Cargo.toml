@@ -1,0 +1,3 @@
+[workspace]
+members = ["bevy-sim"]
+resolver = "2"
