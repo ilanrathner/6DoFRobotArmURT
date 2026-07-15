@@ -6,3 +6,4 @@ edition.workspace = true
 [dependencies]
 dh_arm_model = { path = "../dh_arm_model" }
 nalgebra = "0.30"
+k = "0.31"

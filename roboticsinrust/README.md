@@ -32,6 +32,12 @@ New advanced simulation framework using the Bevy engine for more complex interac
 ```
 cargo run -p bevy_sim
 ```
+### `bevy_sim_urdf`
+New advanced simulation framework using the Bevy engine for more complex interactions and features.
+
+**To run Bevy simulation:**
+```
+cargo run -p bevy_sim_urdf
 
 ## Building
 
