@@ -5,21 +5,21 @@ fn approx_eq(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-9
 }
 
-fn dh_fixed_link_row(length: f64) -> DHRow {
+fn dh_joint_row(a: f64, alpha: f64, d: f64, base_offset: f64, joint_index: usize) -> DHRow {
     DHRow::new(
-        DHParam::constant(length),
-        DHParam::constant(0.0),
-        DHParam::constant(0.0),
-        DHParam::constant(0.0),
+        DHParam::constant(a),
+        DHParam::constant_angle(alpha),
+        DHParam::constant(d),
+        DHParam::variable_angle(base_offset, joint_index),
     )
 }
 
-fn dh_revolute_joint_row(joint_index: usize) -> DHRow {
+fn dh_fixed_row(a: f64, alpha: f64, d: f64) -> DHRow {
     DHRow::new(
-        DHParam::constant(0.0),
-        DHParam::constant(0.0),
-        DHParam::constant(0.0),
-        DHParam::variable(0.0, joint_index),
+        DHParam::constant(a),
+        DHParam::constant_angle(alpha),
+        DHParam::constant(d),
+        DHParam::constant_angle(0.0),
     )
 }
 
@@ -29,37 +29,20 @@ fn revolute_joint(position_degrees: f64) -> Joint {
     joint
 }
 
-//_________________________
-// Build arm with one joint
-
-fn build_arm_one_joint() -> DHTable<2, 1, 0> {
-    // Row 0: the joint itself -> pure roation, no fixed offset
-    let row0 = DHRow::new(
-        DHParam::constant(0.0),
-        DHParam::constant(0.0),
-        DHParam::constant(0.0),
-        DHParam::variable(0.0, 0),
-    );
-
-    // Row 1: the rigid link -> 1 unit long, no rotation of its own
-    let row1 = DHRow::new(
-        DHParam::constant(1.0),
-        DHParam::constant(0.0),
-        DHParam::constant(0.0),
-        DHParam::constant(0.0),
-    );
-
-    DHTable::new([row0, row1])
-}
-
 #[test]
 fn fk_one_joint_test1() {
-    let table = build_arm_one_joint();
-    let mut joint = Joint::new(JointType::Revolute, None, None);
-    joint.set_position(0.0);
-    let joints = [joint];
+    let table = DHTable::<2, 1, 0>::new([
+        dh_joint_row(0.0, 0.0, 0.0, 0.0, 0),
+        dh_fixed_row(1.0, 0.0, 0.0),
+    ]);
+    let joints = [revolute_joint(0.0)];
 
     let pose = table.get_frame_pose(2, &joints);
+
+    println!(
+        "x = {}, y = {}, z = {}",
+        pose.position.x, pose.position.y, pose.position.z
+    );
 
     assert!(approx_eq(pose.position.x, 1.0));
     assert!(approx_eq(pose.position.y, 0.0));
@@ -68,84 +51,55 @@ fn fk_one_joint_test1() {
 
 #[test]
 fn fk_one_joint_test2() {
-    let table = build_arm_one_joint();
-    let mut joint = Joint::new(JointType::Revolute, None, None);
-    joint.set_position(90.0);
-    let joints = [joint];
+    let table = DHTable::<2, 1, 0>::new([
+        dh_joint_row(0.0, 0.0, 0.0, 0.0, 0),
+        dh_fixed_row(1.0, 0.0, 0.0),
+    ]);
+    let joints = [revolute_joint(90.0)];
 
     let pose = table.get_frame_pose(2, &joints);
+
+    println!(
+        "x = {}, y = {}, z = {}",
+        pose.position.x, pose.position.y, pose.position.z
+    );
 
     assert!(approx_eq(pose.position.x, 0.0));
     assert!(approx_eq(pose.position.y, 1.0));
     assert!(approx_eq(pose.position.z, 0.0));
 }
 
-//__________________________
-// Build arm with two joints
-
-fn build_arm_two_joints(link0: f64, link1: f64) -> DHTable<4, 2, 0> {
-    DHTable::new([
-        dh_revolute_joint_row(0),
-        dh_fixed_link_row(link0),
-        dh_revolute_joint_row(1),
-        dh_fixed_link_row(link1),
-    ])
-}
-
 #[test]
-fn fk_two_joints_test1() {
-    let table = build_arm_two_joints(1.0, 2.0);
-    let joints = [revolute_joint(0.0), revolute_joint(0.0)];
+fn fk_one_joint_test3() {
+    let table = DHTable::<2, 1, 0>::new([
+        dh_joint_row(0.0, 0.0, 0.0, 0.0, 0),
+        dh_fixed_row(0.0, 0.0, 1.0),
+    ]);
+    let joints = [revolute_joint(0.0)];
 
-    let pose = table.get_frame_pose(4, &joints);
+    let pose = table.get_frame_pose(2, &joints);
 
-    assert!(approx_eq(pose.position.x, 3.0));
+    println!(
+        "x = {}, y = {}, z = {}",
+        pose.position.x, pose.position.y, pose.position.z
+    );
+
+    assert!(approx_eq(pose.position.x, 0.0));
     assert!(approx_eq(pose.position.y, 0.0));
-    assert!(approx_eq(pose.position.z, 0.0));
-}
-
-#[test]
-fn fk_two_joints_test2() {
-    let table = build_arm_two_joints(1.0, 2.0);
-    let joints = [revolute_joint(0.0), revolute_joint(90.0)];
-
-    let pose = table.get_frame_pose(4, &joints);
-
-    assert!(approx_eq(pose.position.x, 1.0));
-    assert!(approx_eq(pose.position.y, 2.0));
-    assert!(approx_eq(pose.position.z, 0.0));
-}
-
-//__________________________
-// Build arm with six joints
-
-fn build_arm_six_joints(
-    link0: f64,
-    link1: f64,
-    link2: f64,
-    link3: f64,
-    link4: f64,
-    link5: f64,
-) -> DHTable<12, 6, 0> {
-    DHTable::new([
-        dh_revolute_joint_row(0),
-        dh_fixed_link_row(link0),
-        dh_revolute_joint_row(1),
-        dh_fixed_link_row(link1),
-        dh_revolute_joint_row(2),
-        dh_fixed_link_row(link2),
-        dh_revolute_joint_row(3),
-        dh_fixed_link_row(link3),
-        dh_revolute_joint_row(4),
-        dh_fixed_link_row(link4),
-        dh_revolute_joint_row(5),
-        dh_fixed_link_row(link5),
-    ])
+    assert!(approx_eq(pose.position.z, 1.0));
 }
 
 #[test]
 fn fk_six_joints_test1() {
-    let table = build_arm_six_joints(1.0, 2.0, 3.0, 4.0, 5.0, 6.0);
+    let table = DHTable::<7, 6, 5>::new([
+        dh_joint_row(0.0, 0.0, 0.0, 0.0, 0),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 1),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 2),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 3),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 4),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 5),
+        dh_fixed_row(1.0, 0.0, 0.0),
+    ]);
     let joints = [
         revolute_joint(0.0),
         revolute_joint(0.0),
@@ -155,28 +109,174 @@ fn fk_six_joints_test1() {
         revolute_joint(0.0),
     ];
 
-    let pose = table.get_frame_pose(12, &joints);
+    let pose = table.get_frame_pose(7, &joints);
 
-    assert!(approx_eq(pose.position.x, 21.0));
+    println!(
+        "x = {}, y = {}, z = {}",
+        pose.position.x, pose.position.y, pose.position.z
+    );
+
+    assert!(approx_eq(pose.position.x, 6.0));
     assert!(approx_eq(pose.position.y, 0.0));
     assert!(approx_eq(pose.position.z, 0.0));
 }
 
 #[test]
 fn fk_six_joints_test2() {
-    let table = build_arm_six_joints(1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+    let table = DHTable::<7, 6, 5>::new([
+        dh_joint_row(0.0, 0.0, 0.0, 0.0, 0),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 1),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 2),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 3),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 4),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 5),
+        dh_fixed_row(1.0, 0.0, 0.0),
+    ]);
     let joints = [
         revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
         revolute_joint(90.0),
-        revolute_joint(-90.0),
-        revolute_joint(-90.0),
+    ];
+
+    let pose = table.get_frame_pose(7, &joints);
+
+    println!(
+        "x = {}, y = {}, z = {}",
+        pose.position.x, pose.position.y, pose.position.z
+    );
+
+    assert!(approx_eq(pose.position.x, 5.0));
+    assert!(approx_eq(pose.position.y, 1.0));
+    assert!(approx_eq(pose.position.z, 0.0));
+}
+
+#[test]
+fn fk_six_joints_test3() {
+    let table = DHTable::<7, 6, 5>::new([
+        dh_joint_row(0.0, 0.0, 0.0, 0.0, 0),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 1),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 2),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 3),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 4),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 5),
+        dh_fixed_row(0.0, 0.0, 1.0),
+    ]);
+    let joints = [
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+    ];
+
+    let pose = table.get_frame_pose(7, &joints);
+
+    println!(
+        "x = {}, y = {}, z = {}",
+        pose.position.x, pose.position.y, pose.position.z
+    );
+
+    assert!(approx_eq(pose.position.x, 5.0));
+    assert!(approx_eq(pose.position.y, 0.0));
+    assert!(approx_eq(pose.position.z, 1.0));
+}
+
+#[test]
+fn fk_six_joints_test4() {
+    let table = DHTable::<7, 6, 5>::new([
+        dh_joint_row(0.0, 0.0, 0.0, 0.0, 0),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 1),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 2),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 3),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 4),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 5),
+        dh_fixed_row(1.0, 0.0, 0.0),
+    ]);
+    let joints = [
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
         revolute_joint(90.0),
         revolute_joint(0.0),
     ];
 
-    let pose = table.get_frame_pose(12, &joints);
+    let pose = table.get_frame_pose(7, &joints);
+
+    println!(
+        "x = {}, y = {}, z = {}",
+        pose.position.x, pose.position.y, pose.position.z
+    );
 
     assert!(approx_eq(pose.position.x, 4.0));
-    assert!(approx_eq(pose.position.y, 0.0));
+    assert!(approx_eq(pose.position.y, 2.0));
+    assert!(approx_eq(pose.position.z, 0.0));
+}
+
+#[test]
+fn fk_six_joints_test5() {
+    let table = DHTable::<7, 6, 5>::new([
+        dh_joint_row(0.0, 0.0, 0.0, 0.0, 0),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 1),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 2),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 3),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 4),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 5),
+        dh_fixed_row(0.0, 0.0, 1.0),
+    ]);
+    let joints = [
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(90.0),
+        revolute_joint(0.0),
+    ];
+
+    let pose = table.get_frame_pose(7, &joints);
+
+    println!(
+        "x = {}, y = {}, z = {}",
+        pose.position.x, pose.position.y, pose.position.z
+    );
+
+    assert!(approx_eq(pose.position.x, 4.0));
+    assert!(approx_eq(pose.position.y, 1.0));
+    assert!(approx_eq(pose.position.z, 1.0));
+}
+
+#[test]
+fn fk_six_joints_test6() {
+    let table = DHTable::<7, 6, 5>::new([
+        dh_joint_row(0.0, 0.0, 0.0, 0.0, 0),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 1),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 2),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 3),
+        dh_joint_row(1.0, 0.0, 0.0, 0.0, 4),
+        dh_joint_row(1.0, 90.0, 0.0, 0.0, 5),
+        dh_fixed_row(0.0, 0.0, 1.0),
+    ]);
+    let joints = [
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+        revolute_joint(0.0),
+    ];
+
+    let pose = table.get_frame_pose(7, &joints);
+
+    println!(
+        "x = {}, y = {}, z = {}",
+        pose.position.x, pose.position.y, pose.position.z
+    );
+
+    assert!(approx_eq(pose.position.x, 5.0));
+    assert!(approx_eq(pose.position.y, -1.0));
     assert!(approx_eq(pose.position.z, 0.0));
 }
