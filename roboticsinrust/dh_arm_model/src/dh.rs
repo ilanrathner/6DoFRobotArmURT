@@ -2,57 +2,67 @@ use crate::joint::{Joint, JointType};
 use nalgebra::{Matrix4, Matrix3,  Vector3, SMatrix};
 
 
-pub enum ParamValue {
-    /// A fixed physical dimension (e.g., link length, fixed twist).
+pub enum DHParam {
+    /// Fixed physical value (twist angle, fixed offset).
     Constant(f64),
-    /// A dimension that changes with a joint (e.g., d for prismatic, theta for revolute).
-    /// base_offset is the physical starting length.
+    
+    /// Fixed physical link length used by IK solvers.
+    ConstantLink(f64),
+    
+    /// Driven joint variable (e.g., revolute theta). Base offset is the axis offset in the dh table
     Variable {
+        base_offset: f64,
+        joint_index: usize,
+    },
+    
+    /// Driven joint variable that ALSO acts as a link length (e.g., prismatic d).
+    VariableLink {
         base_offset: f64,
         joint_index: usize,
     },
 }
 
-pub struct DHParam {
-    pub value: ParamValue,
-    /// If true, the IK solver will "pluck" this resolved value as a link length.
-    pub is_ik_link: bool,
-}
-
 impl DHParam {
     /// Resolves the current numeric value based on joint positions.
     pub fn get_val(&self, joints: &[Joint]) -> f64 {
-        match self.value {
-            ParamValue::Constant(c) => c,
-            ParamValue::Variable { base_offset, joint_index } => {
+        match *self {
+            DHParam::Constant(val) | DHParam::ConstantLink(val) => val,
+            DHParam::Variable { base_offset, joint_index } 
+            | DHParam::VariableLink { base_offset, joint_index } => {
                 base_offset + joints[joint_index].position
             }
         }
     }
 
-    // Helper constructors to make main.rs clean
-    pub fn variable_angle(base: f64, idx: usize) -> Self {
-        Self { value: ParamValue::Variable { base_offset: base.to_radians(), joint_index: idx }, is_ik_link: false }
+    /// Fixed structural angle in degrees (e.g., fixed twist alpha or fixed offset theta).
+    pub fn constant_angle(deg: f64) -> Self {
+        Self::Constant(deg.to_radians())
     }
 
-    pub fn constant_angle(val: f64) -> Self {
-        Self { value: ParamValue::Constant(val.to_radians()), is_ik_link: false }
+    /// Driven joint variable for angles in degrees (e.g., revolute theta).
+    pub fn variable_angle(base_deg: f64, joint_index: usize) -> Self {
+        Self::Variable {
+            base_offset: base_deg.to_radians(),
+            joint_index,
+        }
     }
 
+    /// Fixed physical length or linear offset (e.g., fixed d offset or fixed a offset).
     pub fn constant(val: f64) -> Self {
-        Self { value: ParamValue::Constant(val), is_ik_link: false }
+        Self::Constant(val)
     }
 
+    /// Fixed physical link length explicitly tracked for IK solvers (e.g., link a or link d).
     pub fn constant_link(val: f64) -> Self {
-        Self { value: ParamValue::Constant(val), is_ik_link: true }
+        Self::ConstantLink(val)
     }
 
-    pub fn variable(base: f64, idx: usize) -> Self {
-        Self { value: ParamValue::Variable { base_offset: base, joint_index: idx }, is_ik_link: false }
-    }
-
-    pub fn variable_link(base: f64, idx: usize) -> Self {
-        Self { value: ParamValue::Variable { base_offset: base, joint_index: idx }, is_ik_link: true }
+    /// Driven joint variable for linear displacements (e.g., prismatic d or prismatic a).
+    pub fn variable_link(base_offset: f64, joint_index: usize) -> Self {
+        Self::VariableLink {
+            base_offset,
+            joint_index,
+        }
     }
 
 }
@@ -108,21 +118,31 @@ impl DHRow {
 
     /// Returns the joint index and whether it is a prismatic or revolute joint
     pub fn get_joint_info(&self) -> Option<(usize, JointType)> {
-        // A row "has a joint" if any of its parameters are Variable.
-        // We check in order of standard DH priority: theta, then d.
-        if let ParamValue::Variable {joint_index, .. } = self.theta.value {
-            return Some((joint_index, JointType::Revolute)); // Revolute
+        match self.theta {
+            DHParam::Variable { joint_index, .. } 
+            | DHParam::VariableLink { joint_index, .. } => return Some((joint_index, JointType::Revolute)),
+            _ => {}
         }
-        if let ParamValue::Variable {joint_index, .. } = self.d.value {
-            return Some((joint_index, JointType::Prismatic)); // Prismatic
+
+        match self.d {
+            DHParam::Variable { joint_index, .. } 
+            | DHParam::VariableLink { joint_index, .. } => return Some((joint_index, JointType::Prismatic)),
+            _ => {}
         }
-        if let ParamValue::Variable {joint_index, .. } = self.alpha.value {
-            return Some((joint_index, JointType::Revolute)); // Revolute
+
+        match self.alpha {
+            DHParam::Variable { joint_index, .. } 
+            | DHParam::VariableLink { joint_index, .. } => return Some((joint_index, JointType::Revolute)),
+            _ => {}
         }
-        if let ParamValue::Variable {joint_index, .. } = self.a.value {
-            return Some((joint_index, JointType::Prismatic)); // Prismatic (rare, but possible)
+
+        match self.a {
+            DHParam::Variable { joint_index, .. } 
+            | DHParam::VariableLink { joint_index, .. } => return Some((joint_index, JointType::Prismatic)),
+            _ => {}
         }
-        None // Fixed frame
+
+        None // Fixed frame offset
     }
 
     /// Print DH row info, showing joint type and current joint value if applicable
@@ -168,26 +188,22 @@ impl<const F: usize, const J: usize, const L:usize > DHTable<F, J, L> {
         let mut cursor = 0;
 
         for row in &self.rows {
-            // Check 'a'
-            if row.a.is_ik_link {
-                if cursor < L {
-                    links[cursor] = row.a.get_val(joints);
-                    cursor += 1;
-                }
-            }
-            // Check 'd'
-            if row.d.is_ik_link {
-                if cursor < L {
-                    links[cursor] = row.d.get_val(joints);
-                    cursor += 1;
+            for param in [&row.a, &row.d] {
+                match param {
+                    DHParam::ConstantLink(val) => {
+                        links[cursor] = *val;
+                        cursor += 1;
+                    }
+                    DHParam::VariableLink { base_offset, joint_index } => {
+                        links[cursor] = *base_offset + joints[*joint_index].position;
+                        cursor += 1;
+                    }
+                    _ => {} // Constant and Variable are ignored
                 }
             }
         }
 
-        // Safety check for development: 
-        // Ensures your L matches the actual 'is_ik_link' count in your rows.
         debug_assert_eq!(cursor, L, "IK Link count mismatch! Found {}, expected L={}", cursor, L);
-
         links
     }
 
