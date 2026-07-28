@@ -1,3 +1,5 @@
+//! Minimal URDF XML parsing for links, joints, visuals, and mesh references.
+
 use bevy::prelude::{Color, Vec3};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -5,6 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::constants::{DEFAULT_LIMIT, KEY_PAIRS};
 use crate::model::{JointSpec, LinkSpec, RobotModel, VisualSpec};
 
+/// Resolves mesh filenames relative to the URDF or an override mesh directory.
 pub(crate) fn resolve_mesh_path(
     urdf_dir: &Path,
     mesh_dir_override: Option<&Path>,
@@ -22,6 +25,7 @@ pub(crate) fn resolve_mesh_path(
     urdf_dir.join(mesh_path)
 }
 
+/// Parses the URDF file into a lightweight robot model used by the viewer.
 pub(crate) fn parse_urdf(path: &Path) -> Result<RobotModel, String> {
     let xml = fs::read_to_string(path).map_err(|error| error.to_string())?;
     let mut links = Vec::new();
@@ -136,6 +140,7 @@ struct TagBlock {
     body: String,
 }
 
+/// Extracts all matching XML blocks for a tag using a small URDF-oriented parser.
 fn tag_blocks(xml: &str, tag: &str) -> Vec<TagBlock> {
     let mut blocks = Vec::new();
     let open_pattern = format!("<{tag}");
@@ -173,6 +178,7 @@ fn tag_blocks(xml: &str, tag: &str) -> Vec<TagBlock> {
     blocks
 }
 
+/// Finds the first opening XML tag with the requested name.
 fn first_tag(xml: &str, tag: &str) -> Option<String> {
     let open = format!("<{tag}");
     let start = xml.find(&open)?;
@@ -180,6 +186,7 @@ fn first_tag(xml: &str, tag: &str) -> Option<String> {
     Some(xml[start..start + end + 1].to_string())
 }
 
+/// Extracts a quoted attribute value from an XML tag.
 fn attr_value(tag: &str, attr: &str) -> Option<String> {
     let pattern = format!("{attr}=\"");
     let start = tag.find(&pattern)? + pattern.len();
@@ -187,6 +194,7 @@ fn attr_value(tag: &str, attr: &str) -> Option<String> {
     Some(tag[start..start + end].to_string())
 }
 
+/// Parses a whitespace-separated xyz/rpy vector, falling back on malformed input.
 fn parse_vec3(value: &str, fallback: Vec3) -> Vec3 {
     let parts = value
         .split_whitespace()
@@ -199,6 +207,7 @@ fn parse_vec3(value: &str, fallback: Vec3) -> Vec3 {
     }
 }
 
+/// Parses URDF rgba text into a Bevy color.
 fn parse_color(value: &str) -> Color {
     let parts = value
         .split_whitespace()

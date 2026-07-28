@@ -1,3 +1,5 @@
+//! Shared tuning constants for controls, defaults, and DLS IK behavior.
+
 use bevy::prelude::KeyCode;
 
 pub(crate) const DEFAULT_TRIANGLE_CAP: usize = 25_000;

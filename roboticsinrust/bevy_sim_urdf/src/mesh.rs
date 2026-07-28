@@ -1,9 +1,12 @@
+//! Binary STL loading utilities for constructing Bevy meshes from URDF visuals.
+
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::PrimitiveTopology;
 use bevy::prelude::{Mesh, Vec3};
 use std::fs;
 use std::path::Path;
 
+/// Loads a binary STL file into a Bevy mesh, optionally downsampling triangles.
 pub(crate) fn load_binary_stl_mesh(
     path: &Path,
     scale: Vec3,
@@ -67,6 +70,7 @@ pub(crate) fn load_binary_stl_mesh(
     Ok(mesh)
 }
 
+/// Reads a little-endian Vec3 from the STL byte buffer.
 fn read_vec3(bytes: &[u8], offset: usize) -> Vec3 {
     Vec3::new(
         read_f32(bytes, offset),
@@ -75,6 +79,7 @@ fn read_vec3(bytes: &[u8], offset: usize) -> Vec3 {
     )
 }
 
+/// Reads one little-endian f32 from the STL byte buffer.
 fn read_f32(bytes: &[u8], offset: usize) -> f32 {
     f32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
 }

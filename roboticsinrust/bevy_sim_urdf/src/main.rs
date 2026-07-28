@@ -1,3 +1,5 @@
+//! Entry point that wires configuration, URDF loading, and Bevy systems together.
+
 mod constants;
 mod kinematics;
 mod mesh;
@@ -16,6 +18,7 @@ use scene::{draw_joint_axes, drive_joints, drive_task_space_target, orbit_camera
 use settings::parse_viewer_settings;
 use urdf::parse_urdf;
 
+/// Starts the URDF viewer, prints startup context, and runs the Bevy app.
 fn main() {
     let repo_root = repo_root();
     let settings = parse_viewer_settings(&repo_root);
@@ -106,6 +109,7 @@ fn main() {
         .run();
 }
 
+/// Returns the crate directory used as the base for relative asset paths.
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }

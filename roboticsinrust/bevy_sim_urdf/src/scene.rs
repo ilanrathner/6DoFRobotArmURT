@@ -1,3 +1,5 @@
+//! Bevy scene setup, ECS components, input systems, camera control, and gizmo drawing.
+
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use std::collections::HashMap;
@@ -45,6 +47,7 @@ pub(crate) struct TaskSpaceControl {
     target_link: String,
 }
 
+/// Builds lights, ground, robot entities, meshes, target marker, and camera.
 pub(crate) fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -224,6 +227,7 @@ pub(crate) fn setup(
     ));
 }
 
+/// Applies direct keyboard-driven joint angle updates when task-space IK is disabled.
 pub(crate) fn drive_joints(
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -255,6 +259,7 @@ pub(crate) fn drive_joints(
     }
 }
 
+/// Moves the task-space target from keyboard input and solves IK for the robot.
 pub(crate) fn drive_task_space_target(
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -370,6 +375,7 @@ pub(crate) fn drive_task_space_target(
     }
 }
 
+/// Updates the orbit camera from mouse drag and wheel input.
 pub(crate) fn orbit_camera(
     mut mouse_motion: MessageReader<MouseMotion>,
     mut mouse_wheel: MessageReader<MouseWheel>,
@@ -400,6 +406,7 @@ pub(crate) fn orbit_camera(
     }
 }
 
+/// Draws colored joint axes in world space for debugging.
 pub(crate) fn draw_joint_axes(mut gizmos: Gizmos, joints: Query<(&JointState, &GlobalTransform)>) {
     for (joint, global_transform) in &joints {
         let transform = global_transform.compute_transform();
@@ -418,6 +425,7 @@ pub(crate) fn draw_joint_axes(mut gizmos: Gizmos, joints: Query<(&JointState, &G
     }
 }
 
+/// Builds an orbit camera transform from yaw, pitch, radius, and target point.
 fn camera_transform(yaw: f32, pitch: f32, radius: f32, target: Vec3) -> Transform {
     let direction = Vec3::new(
         yaw.cos() * pitch.cos(),
@@ -427,6 +435,7 @@ fn camera_transform(yaw: f32, pitch: f32, radius: f32, target: Vec3) -> Transfor
     Transform::from_translation(target + direction * radius).looking_at(target, Vec3::Z)
 }
 
+/// Spawns the simple ground plane under the robot.
 fn spawn_ground(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -443,6 +452,7 @@ fn spawn_ground(
     ));
 }
 
+/// Spawns the red task-space target marker cube.
 fn spawn_target_marker(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -463,6 +473,7 @@ fn spawn_target_marker(
     ));
 }
 
+/// Converts URDF roll-pitch-yaw values into a Bevy quaternion.
 fn rpy_quat(rpy: Vec3) -> Quat {
     Quat::from_rotation_z(rpy.z) * Quat::from_rotation_y(rpy.y) * Quat::from_rotation_x(rpy.x)
 }

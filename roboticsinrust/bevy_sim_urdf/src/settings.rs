@@ -1,3 +1,5 @@
+//! Command-line parsing and startup joint target initialization for the viewer.
+
 use bevy::prelude::Vec3;
 use std::collections::HashMap;
 use std::env;
@@ -18,6 +20,7 @@ pub(crate) struct ViewerSettings {
     pub(crate) dry_run: bool,
 }
 
+/// Parses CLI arguments and computes the initial viewer settings.
 pub(crate) fn parse_viewer_settings(repo_root: &Path) -> ViewerSettings {
     let mut triangle_cap = None;
     let mut mesh_dir_override = None;
@@ -123,6 +126,7 @@ pub(crate) fn parse_viewer_settings(repo_root: &Path) -> ViewerSettings {
     }
 }
 
+/// Resolves a user-provided path against the crate directory when it is relative.
 fn resolve_repo_path(repo_root: &Path, path: PathBuf) -> PathBuf {
     if path.is_absolute() {
         path
@@ -131,6 +135,7 @@ fn resolve_repo_path(repo_root: &Path, path: PathBuf) -> PathBuf {
     }
 }
 
+/// Parses a comma-separated list of floating-point values.
 fn parse_csv_f32(value: &str) -> Result<Vec<f32>, String> {
     value
         .split(',')
@@ -142,6 +147,7 @@ fn parse_csv_f32(value: &str) -> Result<Vec<f32>, String> {
         .collect()
 }
 
+/// Parses a comma-separated xyz or rpy triple into a Bevy vector.
 fn parse_csv_vec3(value: &str) -> Result<Vec3, String> {
     let values = parse_csv_f32(value)?;
     if values.len() != 3 {
@@ -153,6 +159,7 @@ fn parse_csv_vec3(value: &str) -> Result<Vec3, String> {
     Ok(Vec3::new(values[0], values[1], values[2]))
 }
 
+/// Builds the initial joint angle map, optionally solving IK for a startup target.
 fn compute_initial_joint_values(
     urdf_path: &Path,
     joints_arg: Option<&str>,

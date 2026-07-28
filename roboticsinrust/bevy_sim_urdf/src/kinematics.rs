@@ -1,3 +1,5 @@
+//! Kinematics helpers and the Jacobian damped least-squares IK implementation.
+
 use bevy::prelude::{Resource, Vec3};
 use k::nalgebra::{DMatrix, DVector, Isometry3, UnitQuaternion, Vector6};
 use std::collections::HashMap;
@@ -15,6 +17,7 @@ pub(crate) struct KinematicsState {
     pub(crate) joint_names: Vec<String>,
 }
 
+/// Loads a kinematic chain from the URDF and records movable joint ordering.
 pub(crate) fn create_kinematics_state(urdf_path: &Path) -> Result<KinematicsState, String> {
     let chain = k::Chain::<f64>::from_urdf_file(urdf_path)
         .map_err(|error| format!("failed to load URDF with k: {error}"))?;
@@ -25,6 +28,7 @@ pub(crate) fn create_kinematics_state(urdf_path: &Path) -> Result<KinematicsStat
     Ok(KinematicsState { chain, joint_names })
 }
 
+/// Computes the world-space position of a link after applying joint values.
 pub(crate) fn link_position_from_joint_values(
     kinematics: &mut KinematicsState,
     joint_values: &HashMap<String, f32>,
@@ -56,6 +60,7 @@ pub(crate) fn link_position_from_joint_values(
     ))
 }
 
+/// Solves IK from current joint values and returns the resulting joint map.
 pub(crate) fn solve_task_space_ik_values(
     kinematics: &mut KinematicsState,
     current_values: &HashMap<String, f32>,
@@ -90,6 +95,7 @@ pub(crate) fn solve_task_space_ik_values(
         .collect())
 }
 
+/// Moves the kinematic chain toward a task-space target using DLS IK.
 pub(crate) fn solve_task_space_ik(
     chain: &k::Chain<f64>,
     target_link: &str,
@@ -115,6 +121,7 @@ pub(crate) fn solve_task_space_ik(
     Ok(())
 }
 
+/// Iteratively applies damped least-squares corrections until the target is reached.
 fn solve_damped_least_squares_ik(
     arm: &k::SerialChain<f64>,
     target_transform: &Isometry3<f64>,
@@ -176,6 +183,7 @@ fn solve_damped_least_squares_ik(
     ))
 }
 
+/// Builds the constrained task-space error vector between current and target poses.
 fn pose_diff_with_operational_space(
     target: &Isometry3<f64>,
     current: &Isometry3<f64>,
@@ -203,6 +211,7 @@ fn pose_diff_with_operational_space(
     constrained_diff
 }
 
+/// Filters the full Jacobian down to the active task-space rows.
 fn jacobian_with_operational_space(
     arm: &k::SerialChain<f64>,
     operational_space: [bool; 6],
@@ -219,6 +228,7 @@ fn jacobian_with_operational_space(
     })
 }
 
+/// Raises damping near singular configurations based on the smallest singular value.
 fn adaptive_dls_damping(jacobian: &DMatrix<f64>) -> f64 {
     let singular_values = jacobian.clone().svd(false, false).singular_values;
     let min_singular_value = singular_values
@@ -232,6 +242,7 @@ fn adaptive_dls_damping(jacobian: &DMatrix<f64>) -> f64 {
     DLS_BASE_DAMPING + singularity_ratio * DLS_SINGULARITY_DAMPING
 }
 
+/// Splits the constrained error vector into position and orientation norms.
 fn target_error_norms(
     error: &DVector<f64>,
     operational_space: [bool; 6],
@@ -261,6 +272,7 @@ fn target_error_norms(
     )
 }
 
+/// Converts URDF roll-pitch-yaw values into a nalgebra quaternion.
 fn rpy_quat_f64(rpy: Vec3) -> UnitQuaternion<f64> {
     UnitQuaternion::from_euler_angles(rpy.x as f64, rpy.y as f64, rpy.z as f64)
 }
