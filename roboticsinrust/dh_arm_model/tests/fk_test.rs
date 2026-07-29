@@ -40,7 +40,7 @@ fn fk_one_joint_test1() {
     let pose = table.get_frame_pose(2, &joints);
 
     println!(
-        "x = {}, y = {}, z = {}",
+        "x = {:.4}, y = {:.4}, z = {:.4}",
         pose.position.x, pose.position.y, pose.position.z
     );
 
@@ -60,7 +60,7 @@ fn fk_one_joint_test2() {
     let pose = table.get_frame_pose(2, &joints);
 
     println!(
-        "x = {}, y = {}, z = {}",
+        "x = {:.4}, y = {:.4}, z = {:.4}",
         pose.position.x, pose.position.y, pose.position.z
     );
 
@@ -80,7 +80,7 @@ fn fk_one_joint_test3() {
     let pose = table.get_frame_pose(2, &joints);
 
     println!(
-        "x = {}, y = {}, z = {}",
+        "x = {:.4}, y = {:.4}, z = {:.4}",
         pose.position.x, pose.position.y, pose.position.z
     );
 
@@ -112,7 +112,7 @@ fn fk_six_joints_test1() {
     let pose = table.get_frame_pose(7, &joints);
 
     println!(
-        "x = {}, y = {}, z = {}",
+        "x = {:.4}, y = {:.4}, z = {:.4}",
         pose.position.x, pose.position.y, pose.position.z
     );
 
@@ -144,7 +144,7 @@ fn fk_six_joints_test2() {
     let pose = table.get_frame_pose(7, &joints);
 
     println!(
-        "x = {}, y = {}, z = {}",
+        "x = {:.4}, y = {:.4}, z = {:.4}",
         pose.position.x, pose.position.y, pose.position.z
     );
 
@@ -176,7 +176,7 @@ fn fk_six_joints_test3() {
     let pose = table.get_frame_pose(7, &joints);
 
     println!(
-        "x = {}, y = {}, z = {}",
+        "x = {:.4}, y = {:.4}, z = {:.4}",
         pose.position.x, pose.position.y, pose.position.z
     );
 
@@ -208,7 +208,7 @@ fn fk_six_joints_test4() {
     let pose = table.get_frame_pose(7, &joints);
 
     println!(
-        "x = {}, y = {}, z = {}",
+        "x = {:.4}, y = {:.4}, z = {:.4}",
         pose.position.x, pose.position.y, pose.position.z
     );
 
@@ -240,7 +240,7 @@ fn fk_six_joints_test5() {
     let pose = table.get_frame_pose(7, &joints);
 
     println!(
-        "x = {}, y = {}, z = {}",
+        "x = {:.4}, y = {:.4}, z = {:.4}",
         pose.position.x, pose.position.y, pose.position.z
     );
 
@@ -272,7 +272,7 @@ fn fk_six_joints_test6() {
     let pose = table.get_frame_pose(7, &joints);
 
     println!(
-        "x = {}, y = {}, z = {}",
+        "x = {:.4}, y = {:.4}, z = {:.4}",
         pose.position.x, pose.position.y, pose.position.z
     );
 
