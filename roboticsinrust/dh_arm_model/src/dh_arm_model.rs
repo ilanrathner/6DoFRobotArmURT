@@ -157,7 +157,7 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> DHArmModel
     }
 
     /// Solves IK using the End-Effector target pose (position + rotation matrix)
-    pub fn solve_ik_from_pose(&self, target_pose: &Pose) -> Result<[f64; J], String> {
+    pub fn solve_ik_from_pose(&self, target_pose: &Pose) -> Option<[f64; J]> {
         let x = target_pose.position.x;
         let y = target_pose.position.y;
         let z = target_pose.position.z;
@@ -172,7 +172,7 @@ impl<const F: usize, const J: usize, const L: usize,  S: IkSolver<J>> DHArmModel
         &self, 
         x: f64, y: f64, z: f64, 
         yaw: f64, pitch: f64, roll: f64
-    ) -> Result<[f64; J], String> {
+    ) -> Option<[f64; J]> {
         let r = Pose::orientation_mat(yaw, pitch, roll); 
         let link_lengths = &self.link_lengths_cache;
 

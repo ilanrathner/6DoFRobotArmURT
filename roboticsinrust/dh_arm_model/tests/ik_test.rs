@@ -117,3 +117,13 @@ fn ik_test1() {
 fn ik_test2() {
     build_six_joints(90.0, 90.0, 90.0, 90.0, 90.0, 90.0);
 }
+
+#[test]
+fn ik_test3() {
+    build_six_joints(90.0, 90.0, 0.0, 0.0, 0.0, 0.0);
+}
+
+#[test]
+fn ik_test4() {
+    build_six_joints(90.0, 90.0, 90.0, 0.0, 0.0, 0.0);
+}

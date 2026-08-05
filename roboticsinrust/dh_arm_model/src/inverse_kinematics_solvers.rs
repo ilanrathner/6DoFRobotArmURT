@@ -7,9 +7,8 @@ use nalgebra::Matrix3;
 /// Defines the interface that all Inverse Kinematics solvers must implement.
 pub trait IkSolver<const J: usize> {
     /// Solves the inverse kinematics problem for a given target pose components and link lengths.
-    /// The number of required link lengths is specific to the solver implementation.
     /// 
-    /// Returns: Result containing the joint angles [theta1..theta6] or an error string.
+    /// Returns: Some([theta1..thetaJ]) if a valid workspace solution exists, or None.
     fn solve_ik(
         &self,
         x: f64, 
@@ -17,7 +16,7 @@ pub trait IkSolver<const J: usize> {
         z: f64, 
         r: &Matrix3<f64>,
         link_lengths: &[f64], 
-    ) -> Result<[f64; J], String>;
+    ) -> Option<[f64; J]>;
 }
 
 // ----------------------------------------------------------------------
@@ -28,23 +27,20 @@ pub trait IkSolver<const J: usize> {
 pub struct UrtIkSolver;
 
 impl IkSolver<6> for UrtIkSolver {
-    /// Solves IK for the URT arm, which requires exactly 5 link lengths.
     fn solve_ik(
         &self,
         x: f64, y: f64, z: f64,
         r: &Matrix3<f64>,
-        link_lengths: &[f64], // <--- Slice input
-    ) -> Result<[f64; 6], String> {
+        link_lengths: &[f64],
+    ) -> Option<[f64; 6]> {
         
         // --- CHECK: Ensure the correct number of link lengths were provided ---
         if link_lengths.len() != 5 {
-            return Err(format!(
-                "URT IK Solver requires 5 link parameters, but {} were provided.", 
-                link_lengths.len()
-            ));
+            println!("URT IK Solver requires 5 link parameters, but {} were provided.", link_lengths.len());
+            return None;
         }
 
-        // --- ADDED: Print input position (x, y, z) and rotation matrix (r) ---
+        // --- Print input position (x, y, z) and rotation matrix (r) ---
         println!("--- IK Solver Input ---");
         println!("Target Position (x, y, z): ({:.4}, {:.4}, {:.4})", x, y, z);
         println!("Target Rotation Matrix (R):");
@@ -75,23 +71,22 @@ impl IkSolver<6> for UrtIkSolver {
         let r_val = (wx.powi(2) + wy.powi(2)).sqrt();
         let s = wz - l1;
 
-        // Step 5: theta3 (using law of cosines)
+        // Step 5: theta3 (Law of Cosines)
         let numerator = r_val.powi(2) + s.powi(2) - l2.powi(2) - l3.powi(2);
         let denom = 2.0 * l2 * l3;
         let cos_theta3 = numerator / denom;
-        //if cos_theta3.abs() > 1.0 {
-        //    return Err("Target out of workspace: theta3 complex".into());
-        //}
+
+        // Workspace reach check
+        if cos_theta3.abs() > 1.0 {
+            println!("Target out of workspace: theta3 complex (cos_theta3 = {:.4})", cos_theta3);
+            return None;
+        }
+
         let sin_theta3 = (1.0 - cos_theta3 * cos_theta3).sqrt();
         let theta3 = sin_theta3.atan2(cos_theta3);
 
         // Step 6: theta2 (standard 2R geometry)
-        let theta2 = (s).atan2(r_val) - (l3 * sin_theta3).atan2(l2 + l3 * cos_theta3);
-        
-        // Validate first three joints are finite
-        //if !theta1.is_finite() || !theta2.is_finite() || !theta3.is_finite() {
-        //    return Err("Target out of workspace: base joints complex".into());
-        //}
+        let theta2 = r_val.atan2(s) - (l3 * sin_theta3).atan2(l2 + l3 * cos_theta3);
 
         // Precompute sines/cosines used for wrist orientation
         let c1 = theta1.cos();
@@ -100,28 +95,33 @@ impl IkSolver<6> for UrtIkSolver {
         let s23 = (theta2 + theta3).sin();
 
         // Step 7..9: wrist Euler angles (θ4..θ6)
-        let theta4 = ( r[(1, 2)] * c1 - r[(0, 2)] * s1 )
-            .atan2( r[(0, 2)] * c23 * c1 - r[(2, 2)] * s23 + r[(1, 2)] * c23 * s1 );
+        let theta4 = (r[(1, 2)] * c1 - r[(0, 2)] * s1)
+            .atan2(r[(0, 2)] * c23 * c1 - r[(2, 2)] * s23 + r[(1, 2)] * c23 * s1);
 
         let expr = -r[(2, 2)] * c23 - r[(0, 2)] * s23 * c1 - r[(1, 2)] * s23 * s1;
-        let theta5 = ( (1.0 - expr.powi(2)).sqrt() ).atan2(-expr);
+        
+        // Clamp to [-1.0, 1.0] to prevent floating-point precision NaN in sqrt
+        let expr_clamped = expr.clamp(-1.0, 1.0);
+        let theta5 = ((1.0 - expr_clamped.powi(2)).sqrt()).atan2(-expr_clamped);
 
-        let theta6 = ( -r[(2, 1)] * c23 - r[(0, 1)] * s23 * c1 - r[(1, 1)] * s23 * s1 )
-            .atan2( -r[(2, 0)] * c23 - r[(0, 0)] * s23 * c1 - r[(1, 0)] * s23 * s1 );
+        let theta6 = (-(-r[(2, 1)] * c23 - r[(0, 1)] * s23 * c1 - r[(1, 1)] * s23 * s1))
+            .atan2(-r[(2, 0)] * c23 - r[(0, 0)] * s23 * c1 - r[(1, 0)] * s23 * s1);
 
-        // Final check
         let thetas = [theta1, theta2, theta3, theta4, theta5, theta6];
+
         if thetas.iter().any(|t| !t.is_finite()) {
-            // --- MODIFIED ERROR MESSAGE ---
             let thetas_str: Vec<String> = thetas.iter().map(|t| format!("{:.4}", t)).collect();
-            
-            return Err(format!(
+            println!(
                 "One or more joint angles are invalid (NaN or Inf). Calculated: [{}]",
                 thetas_str.join(", ")
-            ));
-            // ------------------------------
+            );
+            return None;
         }
+
+        println!("IK solution theta degrees: [{:.4}, {:.4}, {:.4}, {:.4}, {:.4}, {:.4}]",
+            theta1.to_degrees(), theta2.to_degrees(), theta3.to_degrees(),
+            theta4.to_degrees(), theta5.to_degrees(), theta6.to_degrees());
         
-        Ok(thetas)
+        Some(thetas)
     }
 }
