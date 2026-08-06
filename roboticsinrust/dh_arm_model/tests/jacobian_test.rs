@@ -1,65 +1,8 @@
-use dh_arm_model::dh::{DHParam, DHRow, DHTable};
 use dh_arm_model::dh_arm_model::DHArmModel;
-use dh_arm_model::inverse_kinematics_solvers::{IkSolver, UrtIkSolver};
-use dh_arm_model::joint::{Joint, JointType};
+use dh_arm_model::inverse_kinematics_solvers::{UrtIkSolver};
+use dh_arm_model::setups::{setup_default_urt, urt_arm, NUM_JOINTS, NUM_FRAMES, NUM_LINKS};
 use nalgebra::{SMatrix, SVector, Vector3};
 
-const NUM_FRAMES: usize = 7;
-const NUM_JOINTS: usize = 6;
-const NUM_LINKS: usize = 5;
-
-fn create_urt_arm<S: IkSolver<NUM_JOINTS>>(
-    damping: Option<f64>,
-    solver: S,
-) -> DHArmModel<NUM_FRAMES, NUM_JOINTS, NUM_LINKS, S> {
-    let table = DHTable::new([
-        DHRow::new(
-            DHParam::constant(0.0),
-            DHParam::constant_angle(0.0),
-            DHParam::constant_link(9.0),
-            DHParam::variable_angle(0.0, 0),
-        ),
-        DHRow::new(
-            DHParam::constant(0.0),
-            DHParam::constant_angle(-90.0),
-            DHParam::constant(0.0),
-            DHParam::variable_angle(-90.0, 1),
-        ),
-        DHRow::new(
-            DHParam::constant_link(24.0),
-            DHParam::constant_angle(0.0),
-            DHParam::constant(0.0),
-            DHParam::variable_angle(90.0, 2),
-        ),
-        DHRow::new(
-            DHParam::constant(0.0),
-            DHParam::constant_angle(90.0),
-            DHParam::constant_link(22.0),
-            DHParam::variable_angle(0.0, 3),
-        ),
-        DHRow::new(
-            DHParam::constant(0.0),
-            DHParam::constant_angle(-90.0),
-            DHParam::constant(0.0),
-            DHParam::variable_angle(0.0, 4),
-        ),
-        DHRow::new(
-            DHParam::constant(0.0),
-            DHParam::constant_angle(90.0),
-            DHParam::constant_link(15.0),
-            DHParam::variable_angle(0.0, 5),
-        ),
-        DHRow::new(
-            DHParam::constant(0.0),
-            DHParam::constant_angle(0.0),
-            DHParam::constant_link(15.0),
-            DHParam::constant_angle(0.0),
-        ),
-    ]);
-    let joints = std::array::from_fn(|_| Joint::new(JointType::Revolute, None, None));
-
-    DHArmModel::new(table, joints, damping, solver)
-}
 
 fn numerical_jacobian(
     arm: &mut DHArmModel<NUM_FRAMES, NUM_JOINTS, NUM_LINKS, UrtIkSolver>,
@@ -111,7 +54,7 @@ fn geometric_jacobian_matches_forward_kinematics_finite_difference() {
         [15.0, -25.0, 45.0, 30.0, 35.0, -20.0],
         [-40.0, 10.0, 70.0, -35.0, 25.0, 55.0],
     ];
-    let mut arm = create_urt_arm(None, UrtIkSolver);
+    let mut arm = setup_default_urt();
 
     for joint_positions in configurations {
         arm.set_joint_positions(&joint_positions);
@@ -129,7 +72,7 @@ fn geometric_jacobian_matches_forward_kinematics_finite_difference() {
 #[test]
 fn damped_pseudo_inverse_satisfies_regularized_right_inverse_equation() {
     let damping: f64 = 1.0e-3;
-    let mut arm = create_urt_arm(Some(damping), UrtIkSolver);
+    let mut arm = urt_arm(Some(damping), UrtIkSolver);
     let configurations = [
         [0.0; NUM_JOINTS],
         [15.0, -25.0, 45.0, 30.0, 35.0, -20.0],
