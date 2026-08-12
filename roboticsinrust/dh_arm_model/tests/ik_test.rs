@@ -73,7 +73,7 @@ fn build_six_joints(theta0: f64, theta1: f64, theta2: f64, theta3: f64, theta4: 
     let pose = table.get_frame_pose(7, &joints);
 
     println!(
-        "x = {:.4}, y = {:.4}, z = {:.4}",
+        "Original Position (x, y, z): ({:.4}, {:.4}, {:.4})",
         pose.position.x, pose.position.y, pose.position.z
     );
 
@@ -97,15 +97,60 @@ fn build_six_joints(theta0: f64, theta1: f64, theta2: f64, theta3: f64, theta4: 
     }
 
     let check_pose = table.get_frame_pose(7, &check_joints);
-
     println!(
-        "x = {:.4}, y = {:.4}, z = {:.4}",
+        "Roundtrip Position (x, y, z): ({:.4}, {:.4}, {:.4})",
         check_pose.position.x, check_pose.position.y, check_pose.position.z
     );
+    assert!(
+        approx_eq(check_pose.position.x, pose.position.x),
+        "position mismatch at x: origin={:.4}, roundtrip={:.4}",
+        pose.position.x,
+        check_pose.position.x
+    );
+    assert!(
+        approx_eq(check_pose.position.y, pose.position.y),
+        "position mismatch at y: origin={:.4}, roundtrip={:.4}",
+        pose.position.y,
+        check_pose.position.y
+    );
+    assert!(
+        approx_eq(check_pose.position.z, pose.position.z),
+        "position mismatch at z: origin={:.4}, roundtrip={:.4}",
+        pose.position.z,
+        check_pose.position.z
+    );
 
-    assert!(approx_eq(check_pose.position.x, pose.position.x));
-    assert!(approx_eq(check_pose.position.y, pose.position.y));
-    assert!(approx_eq(check_pose.position.z, pose.position.z));
+    println!("Roundtrip Rotation Matrix (R):");
+    println!(
+        "        | {:.4} {:.4} {:.4} |",
+        check_pose.rotation[(0, 0)],
+        check_pose.rotation[(0, 1)],
+        check_pose.rotation[(0, 2)]
+    );
+    println!(
+        "        | {:.4} {:.4} {:.4} |",
+        check_pose.rotation[(1, 0)],
+        check_pose.rotation[(1, 1)],
+        check_pose.rotation[(1, 2)]
+    );
+    println!(
+        "        | {:.4} {:.4} {:.4} |",
+        check_pose.rotation[(2, 0)],
+        check_pose.rotation[(2, 1)],
+        check_pose.rotation[(2, 2)]
+    );
+    for row in 0..3 {
+        for col in 0..3 {
+            assert!(
+                approx_eq(check_pose.rotation[(row, col)], pose.rotation[(row, col)]),
+                "rotation mismatch at ({}, {}): original={}, roundtrip={}",
+                row,
+                col,
+                pose.rotation[(row, col)],
+                check_pose.rotation[(row, col)]
+            );
+        }
+    }
 }
 
 #[test]
