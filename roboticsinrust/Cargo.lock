@@ -1379,6 +1379,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "k 0.32.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

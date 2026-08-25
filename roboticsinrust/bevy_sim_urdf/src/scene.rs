@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use std::collections::HashMap;
 
 use crate::constants::{JOINT_SPEED, TARGET_MOVE_SPEED, TARGET_ROTATE_SPEED, TASK_TARGET_LINK};
+use crate::joystick::JoystickInput;
 use crate::kinematics::{
     KinematicsState, create_kinematics_state, link_position_from_joint_values,
     solve_task_space_ik_values,
@@ -16,6 +17,7 @@ use crate::urdf::resolve_mesh_path;
 
 #[derive(Component)]
 pub(crate) struct JointState {
+    control_index: usize,
     name: String,
     origin_xyz: Vec3,
     origin_rotation: Quat,
@@ -123,6 +125,7 @@ pub(crate) fn setup(
         moving_joints
     );
 
+    let mut control_index = 0;
     for joint in &model.0.joints {
         let Some(parent) = link_entities.get(&joint.parent).copied() else {
             warn!(
@@ -162,6 +165,7 @@ pub(crate) fn setup(
                 (joint.increase_key, joint.decrease_key)
             {
                 commands.entity(child).insert(JointState {
+                    control_index,
                     name: joint.name.clone(),
                     origin_xyz: joint.origin_xyz,
                     origin_rotation,
@@ -172,6 +176,7 @@ pub(crate) fn setup(
                     increase_key,
                     decrease_key,
                 });
+                control_index += 1;
             }
         }
 
@@ -231,6 +236,7 @@ pub(crate) fn setup(
 pub(crate) fn drive_joints(
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    joystick: Res<JoystickInput>,
     task_control: Option<Res<TaskSpaceControl>>,
     mut joints: Query<(&mut JointState, &mut Transform)>,
 ) {
@@ -246,6 +252,9 @@ pub(crate) fn drive_joints(
         }
         if keyboard.pressed(joint.decrease_key) {
             delta -= JOINT_SPEED * time.delta_secs();
+        }
+        if let Some(axis) = joystick.joint_axes.get(joint.control_index) {
+            delta += axis * JOINT_SPEED * time.delta_secs();
         }
         if keyboard.just_pressed(KeyCode::Space) {
             joint.value = 0.0;
@@ -263,6 +272,7 @@ pub(crate) fn drive_joints(
 pub(crate) fn drive_task_space_target(
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    joystick: Res<JoystickInput>,
     mut task_control: ResMut<TaskSpaceControl>,
     mut kinematics: ResMut<KinematicsState>,
     mut marker: Query<&mut Transform, (With<TargetMarker>, Without<JointState>)>,
@@ -303,6 +313,7 @@ pub(crate) fn drive_task_space_target(
     if keyboard.pressed(KeyCode::PageDown) {
         direction.z -= 1.0;
     }
+    direction += joystick.translation;
 
     let mut rotation_delta = Vec3::ZERO;
     if keyboard.pressed(KeyCode::KeyZ) {
@@ -323,6 +334,7 @@ pub(crate) fn drive_task_space_target(
     if keyboard.pressed(KeyCode::KeyN) {
         rotation_delta.z -= 1.0;
     }
+    rotation_delta += joystick.rotation;
 
     let moved = direction.length_squared() > 0.0;
     let rotated = rotation_delta.length_squared() > 0.0;

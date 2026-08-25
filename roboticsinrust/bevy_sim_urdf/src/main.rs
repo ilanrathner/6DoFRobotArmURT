@@ -1,6 +1,7 @@
 //! Entry point that wires configuration, URDF loading, and Bevy systems together.
 
 mod constants;
+mod joystick;
 mod kinematics;
 mod mesh;
 mod model;
@@ -13,6 +14,7 @@ use bevy::prelude::*;
 use std::env;
 use std::path::PathBuf;
 
+use joystick::{JoystickInput, read_joystick};
 use model::model_resource;
 use scene::{draw_joint_axes, drive_joints, drive_task_space_target, orbit_camera, setup};
 use settings::parse_viewer_settings;
@@ -68,6 +70,9 @@ fn main() {
         }
     }
     println!("  M toggle task-space IK");
+    println!("  Task-space joystick button 1/2: target up/down");
+    println!("  Joint-space: joystick 1 X/Y/twist -> motors 1-3");
+    println!("               joystick 2 X/Y/twist -> motors 4-6");
     println!("  Arrow keys move target X/Y, PageUp/PageDown move target Z");
     println!("  Z/X target roll, C/V target pitch, B/N target yaw");
     println!("  Space reset, mouse drag orbit, wheel zoom");
@@ -80,6 +85,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.04, 0.045, 0.05)))
         .insert_resource(settings)
         .insert_resource(model_resource(model))
+        .init_resource::<JoystickInput>()
         .add_plugins(
             DefaultPlugins
                 .set(WindowPlugin {
@@ -100,8 +106,7 @@ fn main() {
         .add_systems(
             Update,
             (
-                drive_task_space_target,
-                drive_joints,
+                (read_joystick, drive_task_space_target, drive_joints).chain(),
                 orbit_camera,
                 draw_joint_axes,
             ),
