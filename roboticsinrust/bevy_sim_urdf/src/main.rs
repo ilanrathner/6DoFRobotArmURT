@@ -52,7 +52,7 @@ fn main() {
             );
         }
     }
-    if !settings.initial_joint_values.is_empty() {
+    if !settings.initial_joint_values.is_empty() { // only used when u specified in the command line arguments
         println!("Initial joint values from k:");
         let mut values = settings.initial_joint_values.iter().collect::<Vec<_>>();
         values.sort_by(|left, right| left.0.cmp(right.0));
@@ -61,7 +61,7 @@ fn main() {
         }
     }
 
-    println!("Moving joint controls:");
+    println!("Moving joint controls:"); // for logging the moving joint controls
     for joint in model.joints.iter().filter(|joint| joint.is_moving()) {
         if let (Some(inc), Some(dec)) = (joint.increase_key, joint.decrease_key) {
             println!("  {:?}/{:?} {}", inc, dec, joint.name);
@@ -83,8 +83,8 @@ fn main() {
         .add_plugins(
             DefaultPlugins
                 .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        title: "URT Arm Bevy Viewer".to_string(),
+                    primary_window: Some(Window { // setting up the primary window with a title and resolution
+                        title: "URT Arm Bevy Simulation".to_string(),
                         resolution: (1280, 840).into(),
                         ..default()
                     }),
@@ -99,7 +99,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (
+            (   // update each of these systems every frame
                 drive_task_space_target,
                 drive_joints,
                 orbit_camera,

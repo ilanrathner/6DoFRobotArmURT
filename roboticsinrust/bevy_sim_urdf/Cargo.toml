@@ -7,3 +7,6 @@ edition.workspace = true
 bevy = "0.18"
 k = "0.32"
 
+[profile.dev]
+opt-level = 1
+debug = 1
