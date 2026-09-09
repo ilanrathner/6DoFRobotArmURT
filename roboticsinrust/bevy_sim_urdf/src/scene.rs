@@ -12,15 +12,16 @@ use crate::kinematics::{
 use crate::mesh::load_binary_stl_mesh;
 use crate::model::RobotModelResource;
 use crate::settings::ViewerSettings;
+use crate::ui::{UiFont, spawn_joint_angles_ui};
 use crate::urdf::resolve_mesh_path;
 
 #[derive(Component)]
 pub(crate) struct JointState {
-    name: String,
+    pub(crate) name: String,
     origin_xyz: Vec3,
     origin_rotation: Quat,
     axis: Vec3,
-    value: f32,
+    pub(crate) value: f32,
     lower: f32,
     upper: f32,
     increase_key: KeyCode,
@@ -54,6 +55,7 @@ pub(crate) fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     settings: Res<ViewerSettings>,
     model: Res<RobotModelResource>,
+    ui_font: Res<UiFont>,
 ) {
     commands.spawn((
         PointLight {
@@ -225,6 +227,8 @@ pub(crate) fn setup(
             pitch: -0.55,
         },
     ));
+
+    spawn_joint_angles_ui(&mut commands, &ui_font);
 }
 
 /// Applies direct keyboard-driven joint angle updates when task-space IK is disabled.
