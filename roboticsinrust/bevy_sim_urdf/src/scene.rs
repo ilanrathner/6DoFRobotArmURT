@@ -1,5 +1,4 @@
 //! Bevy scene setup, ECS components, input systems, camera control, and gizmo drawing.
-
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use std::collections::HashMap;
@@ -12,7 +11,7 @@ use crate::kinematics::{
 use crate::mesh::load_binary_stl_mesh;
 use crate::model::RobotModelResource;
 use crate::settings::ViewerSettings;
-use crate::ui::{UiFont, spawn_joint_angles_ui};
+use crate::ui::{LogBuffer, UiFont, spawn_joint_angles_ui, spawn_log_panel_ui};
 use crate::urdf::resolve_mesh_path;
 
 #[derive(Component)]
@@ -41,8 +40,8 @@ pub(crate) struct TargetMarker;
 
 #[derive(Resource)]
 pub(crate) struct TaskSpaceControl {
-    enabled: bool,
-    target: Vec3,
+    pub(crate) enabled: bool,
+    pub(crate) target: Vec3,
     target_rpy: Vec3,
     target_orientation_enabled: bool,
     target_link: String,
@@ -56,6 +55,7 @@ pub(crate) fn setup(
     settings: Res<ViewerSettings>,
     model: Res<RobotModelResource>,
     ui_font: Res<UiFont>,
+    mut log: ResMut<LogBuffer>,
 ) {
     commands.spawn((
         PointLight {
@@ -118,26 +118,30 @@ pub(crate) fn setup(
         .iter()
         .filter(|joint| joint.is_moving())
         .count();
-    println!(
+    log.push(format!(
         "Loaded {} links, {} joints, {} moving joints",
         model.0.links.len(),
         model.0.joints.len(),
         moving_joints
-    );
+    ));
 
     for joint in &model.0.joints {
         let Some(parent) = link_entities.get(&joint.parent).copied() else {
-            warn!(
+            let message = format!(
                 "joint {} references missing parent {}",
                 joint.name, joint.parent
             );
+            warn!("{message}");
+            log.push(message);
             continue;
         };
         let Some(child) = link_entities.get(&joint.child).copied() else {
-            warn!(
+            let message = format!(
                 "joint {} references missing child {}",
                 joint.name, joint.child
             );
+            warn!("{message}");
+            log.push(message);
             continue;
         };
 
@@ -229,6 +233,7 @@ pub(crate) fn setup(
     ));
 
     spawn_joint_angles_ui(&mut commands, &ui_font);
+    spawn_log_panel_ui(&mut commands, &ui_font);
 }
 
 /// Applies direct keyboard-driven joint angle updates when task-space IK is disabled.
@@ -237,6 +242,7 @@ pub(crate) fn drive_joints(
     keyboard: Res<ButtonInput<KeyCode>>,
     task_control: Option<Res<TaskSpaceControl>>,
     mut joints: Query<(&mut JointState, &mut Transform)>,
+    mut log: ResMut<LogBuffer>,
 ) {
     if let Some(task_control) = task_control {
         if task_control.enabled {
@@ -255,7 +261,7 @@ pub(crate) fn drive_joints(
             joint.value = 0.0;
         } else if delta != 0.0 {
             joint.value = (joint.value + delta).clamp(joint.lower, joint.upper);
-            println!("{}: {:.3} rad", joint.name, joint.value);
+            log.push(format!("{}: {:.3} rad", joint.name, joint.value));
         }
 
         transform.translation = joint.origin_xyz;
@@ -271,17 +277,18 @@ pub(crate) fn drive_task_space_target(
     mut kinematics: ResMut<KinematicsState>,
     mut marker: Query<&mut Transform, (With<TargetMarker>, Without<JointState>)>,
     mut joints: Query<(&mut JointState, &mut Transform), Without<TargetMarker>>,
+    mut log: ResMut<LogBuffer>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyM) {
         task_control.enabled = !task_control.enabled;
-        println!(
+        log.push(format!(
             "task-space IK: {}",
             if task_control.enabled {
                 "enabled"
             } else {
                 "disabled"
             }
-        );
+        ));
     }
 
     if !task_control.enabled {

@@ -15,9 +15,9 @@ use std::env;
 use std::path::PathBuf;
 
 use model::model_resource;
-use scene::{draw_joint_axes, drive_joints, drive_task_space_target, orbit_camera, setup};
+use scene::{draw_joint_axes, drive_joints, drive_task_space_target, orbit_camera};
 use settings::parse_viewer_settings;
-use ui::update_joint_angles_ui;
+use ui::{update_joint_angles_ui, update_log_panel_ui};
 use urdf::parse_urdf;
 
 /// Starts the URDF viewer, prints startup context, and runs the Bevy app.
@@ -107,8 +107,10 @@ fn main() {
                 orbit_camera,
                 draw_joint_axes,
                 update_joint_angles_ui,
+                update_log_panel_ui,
             ),
         )
+        .init_resource::<ui::LogBuffer>()
         .run();
 }
 
