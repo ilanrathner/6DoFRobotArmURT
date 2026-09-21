@@ -45,6 +45,7 @@ pub(crate) struct TaskSpaceControl {
     target_rpy: Vec3,
     target_orientation_enabled: bool,
     target_link: String,
+    last_ik_converge: bool,
 }
 
 /// Builds lights, ground, robot entities, meshes, target marker, and camera.
@@ -94,6 +95,7 @@ pub(crate) fn setup(
         target_rpy: settings.target_rpy,
         target_orientation_enabled: settings.target_orientation_enabled,
         target_link: TASK_TARGET_LINK.to_string(),
+        last_ik_converge: true,
     });
     commands.insert_resource(kinematics);
     spawn_target_marker(
@@ -107,7 +109,11 @@ pub(crate) fn setup(
     let mut link_entities = HashMap::new();
     for link in &model.0.links {
         let entity = commands
-            .spawn((Transform::default(), Name::new(link.name.clone())))
+            .spawn((
+                Transform::default(),
+                Visibility::default(),
+                Name::new(link.name.clone()),
+            ))
             .id();
         link_entities.insert(link.name.clone(), entity);
     }
@@ -232,7 +238,17 @@ pub(crate) fn setup(
         },
     ));
 
-    spawn_joint_angles_ui(&mut commands, &ui_font);
+    let moving_joint_names: Vec<String> = model
+        .0
+        .joints
+        .iter()
+        .filter(|joint| {
+            joint.is_moving() && joint.increase_key.is_some() && joint.decrease_key.is_some()
+        })
+        .map(|joint| joint.name.clone())
+        .collect();
+
+    spawn_joint_angles_ui(&mut commands, &ui_font, &moving_joint_names);
     spawn_log_panel_ui(&mut commands, &ui_font);
 }
 
@@ -369,6 +385,10 @@ pub(crate) fn drive_task_space_target(
             .then_some(task_control.target_rpy),
     ) {
         Ok(values) => {
+            if !task_control.last_ik_converge {
+                log.push("task-space IK: target reachable again".to_string());
+                task_control.last_ik_converge = true;
+            }
             for (mut joint, mut transform) in &mut joints {
                 if let Some(value) = values.get(&joint.name) {
                     joint.value = value.clamp(joint.lower, joint.upper);
@@ -379,9 +399,12 @@ pub(crate) fn drive_task_space_target(
             }
         }
         Err(_error) => {
-            warn!(
-                "task-space IK did not converge; target may be unreachable or near a singularity"
-            );
+            if task_control.last_ik_converge {
+                let message = "task-space IK did not converge; target may be unreachable or near a singularity".to_string();
+                warn!("{message}");
+                log.push(message);
+                task_control.last_ik_converge = false;
+            }
         }
     }
 }

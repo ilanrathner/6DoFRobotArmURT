@@ -18,6 +18,11 @@ pub(crate) struct LogBuffer {
 pub(crate) struct JointAnglesText;
 
 #[derive(Component)]
+pub(crate) struct JointSliderThumb {
+    joint_name: String,
+}
+
+#[derive(Component)]
 pub(crate) struct LogPanelText;
 
 pub(crate) fn load_ui_font(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -25,7 +30,11 @@ pub(crate) fn load_ui_font(mut commands: Commands, asset_server: Res<AssetServer
     commands.insert_resource(UiFont(font));
 }
 
-pub(crate) fn spawn_joint_angles_ui(commands: &mut Commands, ui_font: &UiFont) {
+pub(crate) fn spawn_joint_angles_ui(
+    commands: &mut Commands,
+    ui_font: &UiFont,
+    joint_names: &[String],
+) {
     commands
         .spawn((
             Node {
@@ -48,7 +57,6 @@ pub(crate) fn spawn_joint_angles_ui(commands: &mut Commands, ui_font: &UiFont) {
             //         ..default()
             //     },
             // ));
-
             parent.spawn((
                 Text::new("J1   0.00°\nJ2   0.00°\nJ3   0.00°\nJ4   0.00°\nJ5   0.00°\nJ6   0.00°"),
                 TextFont {
@@ -58,6 +66,33 @@ pub(crate) fn spawn_joint_angles_ui(commands: &mut Commands, ui_font: &UiFont) {
                 },
                 JointAnglesText,
             ));
+            for joint_name in joint_names {
+                parent
+                    .spawn((
+                        Node {
+                            width: px(220),
+                            height: px(10),
+                            position_type: PositionType::Relative,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.15, 0.15, 0.18, 1.0)),
+                    ))
+                    .with_children(|track| {
+                        track.spawn((
+                            Node {
+                                position_type: PositionType::Absolute,
+                                left: Val::Percent(50.0),
+                                width: px(8),
+                                height: px(10),
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgb(0.9, 0.75, 0.2)),
+                            JointSliderThumb {
+                                joint_name: joint_name.clone(),
+                            },
+                        ));
+                    });
+            }
         });
 }
 
@@ -88,6 +123,20 @@ pub(crate) fn update_joint_angles_ui(
     }
 
     **text = output;
+}
+
+pub(crate) fn update_joint_slider_ui(
+    joints: Query<&JointState>,
+    mut thumbs: Query<(&JointSliderThumb, &mut Node)>,
+) {
+    for (thumb, mut node) in &mut thumbs {
+        let Some(joint) = joints.iter().find(|j| j.name == thumb.joint_name) else {
+            continue;
+        };
+        let degrees = joint.value.to_degrees().clamp(-180.0, 180.0);
+        let percent = ((degrees + 180.0) / 360.0) * 100.0;
+        node.left = Val::Percent(percent);
+    }
 }
 
 impl LogBuffer {
