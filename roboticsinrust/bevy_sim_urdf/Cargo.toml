@@ -7,3 +7,9 @@ edition.workspace = true
 bevy = "0.18"
 k = "0.32"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Media_Multimedia"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
