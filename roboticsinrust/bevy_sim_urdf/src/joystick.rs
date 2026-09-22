@@ -266,22 +266,23 @@ mod platform {
         for button in first.get_just_pressed() {
             info!("joystick 1 button pressed: {button:?}");
         }
-        let move_up = pressed_any(
-            first,
-            &[
-                GamepadButton::South,
-                GamepadButton::LeftTrigger,
-                GamepadButton::Other(0),
-            ],
-        );
-        let move_down = pressed_any(
-            first,
-            &[
-                GamepadButton::East,
-                GamepadButton::LeftThumb,
-                GamepadButton::Other(1),
-            ],
-        );
+        if let Some((_, second_gamepad)) = second {
+            for button in second_gamepad.get_just_pressed() {
+                info!("joystick 2 button pressed: {button:?}");
+            }
+        }
+
+        // Accept the vertical controls from either device. This is important
+        // on Ubuntu because the operator may use /dev/input/js1 for task-space
+        // while /dev/input/js0 remains assigned to the other hand.
+        let move_up = is_move_up(first)
+            || second
+                .map(|(_, gamepad)| is_move_up(gamepad))
+                .unwrap_or(false);
+        let move_down = is_move_down(first)
+            || second
+                .map(|(_, gamepad)| is_move_down(gamepad))
+                .unwrap_or(false);
         let vertical = i8::from(move_up) as f32 - i8::from(move_down) as f32;
         input.translation = Vec3::new(first_x, first_y, vertical);
         input.rotation = Vec3::new(0.0, 0.0, first_rz);
@@ -291,6 +292,28 @@ mod platform {
     /// Return true when any platform-specific alias for a control is pressed.
     fn pressed_any(gamepad: &Gamepad, buttons: &[GamepadButton]) -> bool {
         buttons.iter().any(|button| gamepad.pressed(*button))
+    }
+
+    fn is_move_up(gamepad: &Gamepad) -> bool {
+        pressed_any(
+            gamepad,
+            &[
+                GamepadButton::South,
+                GamepadButton::LeftTrigger,
+                GamepadButton::Other(0),
+            ],
+        )
+    }
+
+    fn is_move_down(gamepad: &Gamepad) -> bool {
+        pressed_any(
+            gamepad,
+            &[
+                GamepadButton::East,
+                GamepadButton::LeftThumb,
+                GamepadButton::Other(1),
+            ],
+        )
     }
 }
 
