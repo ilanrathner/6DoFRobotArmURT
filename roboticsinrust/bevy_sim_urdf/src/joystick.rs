@@ -208,7 +208,149 @@ mod platform {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "linux")]
+mod platform {
+    use super::*;
+    use std::fs::{File, OpenOptions};
+    use std::io::{self, Read};
+    use std::os::unix::fs::OpenOptionsExt;
+
+    const JS_EVENT_BUTTON: u8 = 0x01;
+    const JS_EVENT_AXIS: u8 = 0x02;
+    const JS_EVENT_INIT: u8 = 0x80;
+    const EVENT_SIZE: usize = 8;
+
+    /// Cached state for one Linux joystick API device (`/dev/input/jsN`).
+    pub(crate) struct LinuxJoystick {
+        file: File,
+        axes: [f32; 6],
+        buttons: u32,
+    }
+
+    impl LinuxJoystick {
+        fn open(path: &str) -> io::Result<Self> {
+            let file = OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_NONBLOCK)
+                .open(path)?;
+            Ok(Self {
+                file,
+                axes: [0.0; 6],
+                buttons: 0,
+            })
+        }
+
+        /// Drain all currently available `js_event` records without blocking
+        /// Bevy's frame loop. Returns false when the device disconnects.
+        fn poll(&mut self, slot: usize) -> bool {
+            loop {
+                let mut bytes = [0_u8; EVENT_SIZE];
+                match self.file.read(&mut bytes) {
+                    Ok(EVENT_SIZE) => {
+                        let value = i16::from_ne_bytes([bytes[4], bytes[5]]);
+                        let event_type = bytes[6] & !JS_EVENT_INIT;
+                        let number = bytes[7] as usize;
+                        match event_type {
+                            JS_EVENT_AXIS if number < self.axes.len() => {
+                                self.axes[number] = normalize_axis(value);
+                            }
+                            JS_EVENT_BUTTON if number < u32::BITS as usize => {
+                                let mask = 1_u32 << number;
+                                if value != 0 {
+                                    self.buttons |= mask;
+                                    info!("/dev/input/js{slot} button {number} pressed");
+                                } else {
+                                    self.buttons &= !mask;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    Ok(0) => return false,
+                    Ok(_) => continue,
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => return true,
+                    Err(error) => {
+                        warn!("failed to read /dev/input/js{slot}: {error}");
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Read Ubuntu's stable joystick API mapping directly.
+    ///
+    /// T.16000M mapping confirmed with `jstest --event`:
+    /// axis 0 = X, axis 1 = Y, axis 2 = Rz, button 0 = Trigger,
+    /// button 1 = ThumbBtn. Joint space uses js0 for joints 1-3 and js1 for
+    /// joints 4-6. Task space prefers js1, as used by the operator, and falls
+    /// back to js0 when only one joystick is connected.
+    pub(crate) fn read_joystick(
+        mut input: ResMut<JoystickInput>,
+        mut devices: Local<[Option<LinuxJoystick>; 2]>,
+    ) {
+        for slot in 0..2 {
+            if devices[slot].is_none() {
+                let path = format!("/dev/input/js{slot}");
+                if let Ok(device) = LinuxJoystick::open(&path) {
+                    info!("joystick {} connected: {path}", slot + 1);
+                    devices[slot] = Some(device);
+                }
+            }
+        }
+
+        for slot in 0..2 {
+            let connected = devices[slot]
+                .as_mut()
+                .map(|device| device.poll(slot))
+                .unwrap_or(false);
+            if devices[slot].is_some() && !connected {
+                warn!("/dev/input/js{slot} disconnected");
+                devices[slot] = None;
+            }
+        }
+
+        let connected_count = devices.iter().filter(|device| device.is_some()).count();
+        if connected_count == 0 {
+            *input = JoystickInput::default();
+            return;
+        }
+
+        let first_axes = devices[0]
+            .as_ref()
+            .map(|device| device.axes)
+            .unwrap_or([0.0; 6]);
+        let second_axes = devices[1]
+            .as_ref()
+            .map(|device| device.axes)
+            .unwrap_or([0.0; 6]);
+
+        // The operator uses /dev/input/js1 for task-space control.
+        let task = devices[1].as_ref().or(devices[0].as_ref()).unwrap();
+        let move_up = task.buttons & 0x1 != 0;
+        let move_down = task.buttons & 0x2 != 0;
+        let vertical = i8::from(move_up) as f32 - i8::from(move_down) as f32;
+
+        input.connected = true;
+        input.connected_count = connected_count;
+        input.translation = Vec3::new(dead_zone(task.axes[0]), -dead_zone(task.axes[1]), vertical);
+        input.rotation = Vec3::new(0.0, 0.0, dead_zone(task.axes[2]));
+        input.joint_axes = [
+            dead_zone(first_axes[0]),
+            -dead_zone(first_axes[1]),
+            dead_zone(first_axes[2]),
+            dead_zone(second_axes[0]),
+            -dead_zone(second_axes[1]),
+            dead_zone(second_axes[2]),
+        ];
+    }
+
+    fn normalize_axis(value: i16) -> f32 {
+        (value as f32 / i16::MAX as f32).clamp(-1.0, 1.0)
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 mod platform {
     use super::*;
 
