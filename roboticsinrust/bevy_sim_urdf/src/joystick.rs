@@ -212,44 +212,60 @@ mod platform {
 mod platform {
     use super::*;
 
-    /// Bevy-native fallback for non-Windows platforms.
+    /// Bevy-native fallback for Linux and other non-Windows platforms.
+    ///
+    /// On Ubuntu the T.16000M is reported as X, Y, Rz, Throttle, Hat0X and
+    /// Hat0Y. Bevy maps the first three motion axes to LeftStickX,
+    /// LeftStickY and RightZ respectively. The first enumerated device drives
+    /// joints 1-3 and the second drives joints 4-6.
     pub(crate) fn read_joystick(
         gamepads: Query<(&Name, &Gamepad)>,
         mut input: ResMut<JoystickInput>,
-        mut previous_name: Local<Option<String>>,
+        mut previous_names: Local<[Option<String>; 2]>,
     ) {
-        let Some((name, gamepad)) = gamepads.iter().next() else {
+        let mut devices = gamepads.iter();
+        let Some((first_name, first)) = devices.next() else {
             *input = JoystickInput::default();
-            *previous_name = None;
+            *previous_names = [None, None];
             return;
         };
-        if previous_name.as_deref() != Some(name.as_str()) {
-            info!("joystick connected: {name}");
-            *previous_name = Some(name.to_string());
+
+        if previous_names[0].as_deref() != Some(first_name.as_str()) {
+            info!("joystick 1 connected: {first_name}");
+            previous_names[0] = Some(first_name.to_string());
         }
+        let second = devices.next();
+        if let Some((second_name, _)) = second {
+            if previous_names[1].as_deref() != Some(second_name.as_str()) {
+                info!("joystick 2 connected: {second_name}");
+                previous_names[1] = Some(second_name.to_string());
+            }
+        } else {
+            previous_names[1] = None;
+        }
+
         input.connected = true;
-        input.connected_count = 1;
-        let move_up = gamepad.pressed(GamepadButton::South);
-        let move_down = gamepad.pressed(GamepadButton::East);
+        input.connected_count = if second.is_some() { 2 } else { 1 };
+
+        let first_x = dead_zone(first.get(GamepadAxis::LeftStickX).unwrap_or(0.0));
+        let first_y = -dead_zone(first.get(GamepadAxis::LeftStickY).unwrap_or(0.0));
+        let first_rz = dead_zone(first.get(GamepadAxis::RightZ).unwrap_or(0.0));
+        let (second_x, second_y, second_rz) = second
+            .map(|(_, gamepad)| {
+                (
+                    dead_zone(gamepad.get(GamepadAxis::LeftStickX).unwrap_or(0.0)),
+                    -dead_zone(gamepad.get(GamepadAxis::LeftStickY).unwrap_or(0.0)),
+                    dead_zone(gamepad.get(GamepadAxis::RightZ).unwrap_or(0.0)),
+                )
+            })
+            .unwrap_or((0.0, 0.0, 0.0));
+
+        let move_up = first.pressed(GamepadButton::South);
+        let move_down = first.pressed(GamepadButton::East);
         let vertical = i8::from(move_up) as f32 - i8::from(move_down) as f32;
-        input.translation = Vec3::new(
-            dead_zone(gamepad.get(GamepadAxis::LeftStickX).unwrap_or(0.0)),
-            -dead_zone(gamepad.get(GamepadAxis::LeftStickY).unwrap_or(0.0)),
-            vertical,
-        );
-        input.rotation = Vec3::new(
-            0.0,
-            0.0,
-            dead_zone(gamepad.get(GamepadAxis::RightZ).unwrap_or(0.0)),
-        );
-        input.joint_axes = [
-            input.translation.x,
-            input.translation.y,
-            input.rotation.z,
-            0.0,
-            0.0,
-            0.0,
-        ];
+        input.translation = Vec3::new(first_x, first_y, vertical);
+        input.rotation = Vec3::new(0.0, 0.0, first_rz);
+        input.joint_axes = [first_x, first_y, first_rz, second_x, second_y, second_rz];
     }
 }
 
