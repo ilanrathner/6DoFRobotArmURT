@@ -260,12 +260,37 @@ mod platform {
             })
             .unwrap_or((0.0, 0.0, 0.0));
 
-        let move_up = first.pressed(GamepadButton::South);
-        let move_down = first.pressed(GamepadButton::East);
+        // SDL/gilrs mappings vary for flight sticks. On the T.16000M the
+        // physical Trigger and ThumbBtn may be exposed as standard gamepad
+        // buttons or as raw `Other(0)` / `Other(1)` buttons.
+        for button in first.get_just_pressed() {
+            info!("joystick 1 button pressed: {button:?}");
+        }
+        let move_up = pressed_any(
+            first,
+            &[
+                GamepadButton::South,
+                GamepadButton::LeftTrigger,
+                GamepadButton::Other(0),
+            ],
+        );
+        let move_down = pressed_any(
+            first,
+            &[
+                GamepadButton::East,
+                GamepadButton::LeftThumb,
+                GamepadButton::Other(1),
+            ],
+        );
         let vertical = i8::from(move_up) as f32 - i8::from(move_down) as f32;
         input.translation = Vec3::new(first_x, first_y, vertical);
         input.rotation = Vec3::new(0.0, 0.0, first_rz);
         input.joint_axes = [first_x, first_y, first_rz, second_x, second_y, second_rz];
+    }
+
+    /// Return true when any platform-specific alias for a control is pressed.
+    fn pressed_any(gamepad: &Gamepad, buttons: &[GamepadButton]) -> bool {
+        buttons.iter().any(|button| gamepad.pressed(*button))
     }
 }
 
