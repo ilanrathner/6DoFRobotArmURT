@@ -9,6 +9,9 @@ const MAX_LOG_LINES: usize = 10;
 #[derive(Resource)]
 pub(crate) struct UiFont(pub(crate) Handle<Font>);
 
+#[derive(Resource)]
+pub(crate) struct MonoFont(pub(crate) Handle<Font>);
+
 #[derive(Resource, Default)]
 pub(crate) struct LogBuffer {
     lines: VecDeque<String>,
@@ -28,11 +31,14 @@ pub(crate) struct LogPanelText;
 pub(crate) fn load_ui_font(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("fonts/Inter.ttf");
     commands.insert_resource(UiFont(font));
+
+    let mono_font = asset_server.load("fonts/SpaceMono-Regular.ttf");
+    commands.insert_resource(MonoFont(mono_font));
 }
 
 pub(crate) fn spawn_joint_angles_ui(
     commands: &mut Commands,
-    ui_font: &UiFont,
+    mono_font: &MonoFont,
     joint_names: &[String],
 ) {
     commands
@@ -41,10 +47,10 @@ pub(crate) fn spawn_joint_angles_ui(
                 position_type: PositionType::Absolute,
                 left: px(20),
                 top: px(20),
-                width: px(300),
+                width: px(520),
                 padding: UiRect::all(px(16)),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(8),
+                flex_direction: FlexDirection::Row,
+                column_gap: px(16),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.02, 0.025, 0.03, 0.9)),
@@ -58,41 +64,55 @@ pub(crate) fn spawn_joint_angles_ui(
             //     },
             // ));
             parent.spawn((
+                Node {
+                    width: px(280),
+                    ..default()
+                },
                 Text::new("J1   0.00°\nJ2   0.00°\nJ3   0.00°\nJ4   0.00°\nJ5   0.00°\nJ6   0.00°"),
                 TextFont {
-                    font: ui_font.0.clone(),
+                    font: mono_font.0.clone(),
                     font_size: 18.0,
                     ..default()
                 },
                 JointAnglesText,
             ));
-            for joint_name in joint_names {
-                parent
-                    .spawn((
-                        Node {
-                            width: px(220),
-                            height: px(10),
-                            position_type: PositionType::Relative,
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgba(0.15, 0.15, 0.18, 1.0)),
-                    ))
-                    .with_children(|track| {
-                        track.spawn((
-                            Node {
-                                position_type: PositionType::Absolute,
-                                left: Val::Percent(50.0),
-                                width: px(8),
-                                height: px(10),
-                                ..default()
-                            },
-                            BackgroundColor(Color::srgb(0.9, 0.75, 0.2)),
-                            JointSliderThumb {
-                                joint_name: joint_name.clone(),
-                            },
-                        ));
-                    });
-            }
+            parent
+                .spawn(Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(12),
+                    ..default()
+                })
+                .with_children(|slider_col| {
+                    for joint_name in joint_names {
+                        slider_col
+                            .spawn((
+                                Node {
+                                    top: px(37),
+                                    width: px(220),
+                                    height: px(10),
+                                    position_type: PositionType::Relative,
+                                    ..default()
+                                },
+                                BackgroundColor(Color::srgba(0.15, 0.15, 0.18, 1.0)),
+                            ))
+                            .with_children(|track| {
+                                track.spawn((
+                                    Node {
+                                        position_type: PositionType::Absolute,
+                                        left: Val::Percent(50.0),
+                                        width: px(10),
+                                        height: px(10),
+                                        border_radius: BorderRadius::MAX,
+                                        ..default()
+                                    },
+                                    BackgroundColor(Color::srgb(0.9, 0.75, 0.2)),
+                                    JointSliderThumb {
+                                        joint_name: joint_name.clone(),
+                                    },
+                                ));
+                            });
+                    }
+                });
         });
 }
 
@@ -117,7 +137,7 @@ pub(crate) fn update_joint_angles_ui(
 
     if task_control.enabled {
         output.push_str(&format!(
-            "\nTarget: ({:.3}, {:.3}, {:.3})",
+            "\nTarget:\nx = {:.3}\ny = {:.3}\nz = {:.3}",
             task_control.target.x, task_control.target.y, task_control.target.z,
         ));
     }
@@ -154,7 +174,7 @@ impl LogBuffer {
     }
 }
 
-pub(crate) fn spawn_log_panel_ui(commands: &mut Commands, ui_font: &UiFont) {
+pub(crate) fn spawn_log_panel_ui(commands: &mut Commands, mono_font: &MonoFont) {
     commands
         .spawn((
             Node {
@@ -162,7 +182,9 @@ pub(crate) fn spawn_log_panel_ui(commands: &mut Commands, ui_font: &UiFont) {
                 bottom: px(20),
                 left: px(20),
                 width: px(420),
+                height: px(200),
                 padding: UiRect::all(px(12)),
+                overflow: Overflow::clip(),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.02, 0.025, 0.03, 0.9)),
@@ -171,7 +193,7 @@ pub(crate) fn spawn_log_panel_ui(commands: &mut Commands, ui_font: &UiFont) {
             parent.spawn((
                 Text::new(""),
                 TextFont {
-                    font: ui_font.0.clone(),
+                    font: mono_font.0.clone(),
                     font_size: 14.0,
                     ..default()
                 },

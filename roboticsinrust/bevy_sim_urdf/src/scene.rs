@@ -11,7 +11,7 @@ use crate::kinematics::{
 use crate::mesh::load_binary_stl_mesh;
 use crate::model::RobotModelResource;
 use crate::settings::ViewerSettings;
-use crate::ui::{LogBuffer, UiFont, spawn_joint_angles_ui, spawn_log_panel_ui};
+use crate::ui::{LogBuffer, MonoFont, UiFont, spawn_joint_angles_ui, spawn_log_panel_ui};
 use crate::urdf::resolve_mesh_path;
 
 #[derive(Component)]
@@ -56,6 +56,7 @@ pub(crate) fn setup(
     settings: Res<ViewerSettings>,
     model: Res<RobotModelResource>,
     ui_font: Res<UiFont>,
+    mono_font: Res<MonoFont>,
     mut log: ResMut<LogBuffer>,
 ) {
     commands.spawn((
@@ -248,8 +249,8 @@ pub(crate) fn setup(
         .map(|joint| joint.name.clone())
         .collect();
 
-    spawn_joint_angles_ui(&mut commands, &ui_font, &moving_joint_names);
-    spawn_log_panel_ui(&mut commands, &ui_font);
+    spawn_joint_angles_ui(&mut commands, &mono_font, &moving_joint_names);
+    spawn_log_panel_ui(&mut commands, &mono_font);
 }
 
 /// Applies direct keyboard-driven joint angle updates when task-space IK is disabled.
