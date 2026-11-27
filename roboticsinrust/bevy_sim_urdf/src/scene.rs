@@ -1,5 +1,4 @@
 //! Bevy scene setup, ECS components, input systems, camera control, and gizmo drawing.
-
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use std::collections::HashMap;
@@ -13,16 +12,16 @@ use crate::kinematics::{
 use crate::mesh::load_binary_stl_mesh;
 use crate::model::RobotModelResource;
 use crate::settings::ViewerSettings;
+use crate::ui::{LogBuffer, MonoFont, UiFont, spawn_joint_angles_ui, spawn_log_panel_ui};
 use crate::urdf::resolve_mesh_path;
 
 #[derive(Component)]
 pub(crate) struct JointState {
-    control_index: usize,
-    name: String,
+    pub(crate) name: String,
     origin_xyz: Vec3,
     origin_rotation: Quat,
     axis: Vec3,
-    value: f32,
+    pub(crate) value: f32,
     lower: f32,
     upper: f32,
     increase_key: KeyCode,
@@ -42,11 +41,12 @@ pub(crate) struct TargetMarker;
 
 #[derive(Resource)]
 pub(crate) struct TaskSpaceControl {
-    enabled: bool,
-    target: Vec3,
+    pub(crate) enabled: bool,
+    pub(crate) target: Vec3,
     target_rpy: Vec3,
     target_orientation_enabled: bool,
     target_link: String,
+    last_ik_converge: bool,
 }
 
 /// Builds lights, ground, robot entities, meshes, target marker, and camera.
@@ -56,6 +56,9 @@ pub(crate) fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     settings: Res<ViewerSettings>,
     model: Res<RobotModelResource>,
+    ui_font: Res<UiFont>,
+    mono_font: Res<MonoFont>,
+    mut log: ResMut<LogBuffer>,
 ) {
     commands.spawn((
         PointLight {
@@ -94,6 +97,7 @@ pub(crate) fn setup(
         target_rpy: settings.target_rpy,
         target_orientation_enabled: settings.target_orientation_enabled,
         target_link: TASK_TARGET_LINK.to_string(),
+        last_ik_converge: true,
     });
     commands.insert_resource(kinematics);
     spawn_target_marker(
@@ -107,7 +111,11 @@ pub(crate) fn setup(
     let mut link_entities = HashMap::new();
     for link in &model.0.links {
         let entity = commands
-            .spawn((Transform::default(), Name::new(link.name.clone())))
+            .spawn((
+                Transform::default(),
+                Visibility::default(),
+                Name::new(link.name.clone()),
+            ))
             .id();
         link_entities.insert(link.name.clone(), entity);
     }
@@ -118,27 +126,31 @@ pub(crate) fn setup(
         .iter()
         .filter(|joint| joint.is_moving())
         .count();
-    println!(
+    log.push(format!(
         "Loaded {} links, {} joints, {} moving joints",
         model.0.links.len(),
         model.0.joints.len(),
         moving_joints
-    );
+    ));
 
     let mut control_index = 0;
     for joint in &model.0.joints {
         let Some(parent) = link_entities.get(&joint.parent).copied() else {
-            warn!(
+            let message = format!(
                 "joint {} references missing parent {}",
                 joint.name, joint.parent
             );
+            warn!("{message}");
+            log.push(message);
             continue;
         };
         let Some(child) = link_entities.get(&joint.child).copied() else {
-            warn!(
+            let message = format!(
                 "joint {} references missing child {}",
                 joint.name, joint.child
             );
+            warn!("{message}");
+            log.push(message);
             continue;
         };
 
@@ -230,6 +242,19 @@ pub(crate) fn setup(
             pitch: -0.55,
         },
     ));
+
+    let moving_joint_names: Vec<String> = model
+        .0
+        .joints
+        .iter()
+        .filter(|joint| {
+            joint.is_moving() && joint.increase_key.is_some() && joint.decrease_key.is_some()
+        })
+        .map(|joint| joint.name.clone())
+        .collect();
+
+    spawn_joint_angles_ui(&mut commands, &mono_font, &moving_joint_names);
+    spawn_log_panel_ui(&mut commands, &mono_font);
 }
 
 /// Applies direct keyboard-driven joint angle updates when task-space IK is disabled.
@@ -239,6 +264,7 @@ pub(crate) fn drive_joints(
     joystick: Res<JoystickInput>,
     task_control: Option<Res<TaskSpaceControl>>,
     mut joints: Query<(&mut JointState, &mut Transform)>,
+    mut log: ResMut<LogBuffer>,
 ) {
     if let Some(task_control) = task_control {
         if task_control.enabled {
@@ -260,7 +286,7 @@ pub(crate) fn drive_joints(
             joint.value = 0.0;
         } else if delta != 0.0 {
             joint.value = (joint.value + delta).clamp(joint.lower, joint.upper);
-            println!("{}: {:.3} rad", joint.name, joint.value);
+            log.push(format!("{}: {:.3} rad", joint.name, joint.value));
         }
 
         transform.translation = joint.origin_xyz;
@@ -277,17 +303,18 @@ pub(crate) fn drive_task_space_target(
     mut kinematics: ResMut<KinematicsState>,
     mut marker: Query<&mut Transform, (With<TargetMarker>, Without<JointState>)>,
     mut joints: Query<(&mut JointState, &mut Transform), Without<TargetMarker>>,
+    mut log: ResMut<LogBuffer>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyM) {
         task_control.enabled = !task_control.enabled;
-        println!(
+        log.push(format!(
             "task-space IK: {}",
             if task_control.enabled {
                 "enabled"
             } else {
                 "disabled"
             }
-        );
+        ));
     }
 
     if !task_control.enabled {
@@ -370,6 +397,10 @@ pub(crate) fn drive_task_space_target(
             .then_some(task_control.target_rpy),
     ) {
         Ok(values) => {
+            if !task_control.last_ik_converge {
+                log.push("task-space IK: target reachable again".to_string());
+                task_control.last_ik_converge = true;
+            }
             for (mut joint, mut transform) in &mut joints {
                 if let Some(value) = values.get(&joint.name) {
                     joint.value = value.clamp(joint.lower, joint.upper);
@@ -380,9 +411,12 @@ pub(crate) fn drive_task_space_target(
             }
         }
         Err(_error) => {
-            warn!(
-                "task-space IK did not converge; target may be unreachable or near a singularity"
-            );
+            if task_control.last_ik_converge {
+                let message = "task-space IK did not converge; target may be unreachable or near a singularity".to_string();
+                warn!("{message}");
+                log.push(message);
+                task_control.last_ik_converge = false;
+            }
         }
     }
 }

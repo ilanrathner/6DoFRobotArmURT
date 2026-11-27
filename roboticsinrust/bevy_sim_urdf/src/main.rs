@@ -7,6 +7,7 @@ mod mesh;
 mod model;
 mod scene;
 mod settings;
+mod ui;
 mod urdf;
 
 use bevy::log::{Level, LogPlugin};
@@ -16,8 +17,9 @@ use std::path::PathBuf;
 
 use joystick::{JoystickInput, read_joystick};
 use model::model_resource;
-use scene::{draw_joint_axes, drive_joints, drive_task_space_target, orbit_camera, setup};
+use scene::{draw_joint_axes, drive_joints, drive_task_space_target, orbit_camera};
 use settings::parse_viewer_settings;
+use ui::{update_joint_angles_ui, update_joint_slider_ui, update_log_panel_ui};
 use urdf::parse_urdf;
 
 /// Starts the URDF viewer, prints startup context, and runs the Bevy app.
@@ -102,15 +104,19 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (ui::load_ui_font, scene::setup).chain())
         .add_systems(
             Update,
             (
                 (read_joystick, drive_task_space_target, drive_joints).chain(),
                 orbit_camera,
                 draw_joint_axes,
+                update_joint_angles_ui,
+                update_joint_slider_ui,
+                update_log_panel_ui,
             ),
         )
+        .init_resource::<ui::LogBuffer>()
         .run();
 }
 
